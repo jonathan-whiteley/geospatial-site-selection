@@ -18,17 +18,17 @@ targets:
     mode: production
     default: true
     workspace:
-      host: https://e2-demo-west.cloud.databricks.com
+      host: https://e2-demo-field-eng.cloud.databricks.com
       root_path: /Workspace/Demo Assets/Retail_Consumer_Goods/geospatial-site-selection
     variables:
-      catalog: retail_consumer_goods
+      catalog: jdub_demo_aws
       schema: geospatial_site_selection
 
 variables:
   # Unity Catalog
   catalog:
     description: "Unity Catalog name"
-    default: "retail_consumer_goods"
+    default: "jdub_demo_aws"
 
   schema:
     description: "Schema name within catalog"
@@ -64,7 +64,7 @@ variables:
   # GraphHopper Configuration
   graphhopper_volume:
     description: "Path to volume for GraphHopper graph storage"
-    default: "/Volumes/retail_consumer_goods/geospatial_site_selection/graphhopper_data/"
+    default: "/Volumes/jdub_demo_aws/geospatial_site_selection/graphhopper_data/"
 
   # Isochrone Configuration
   drive_time_buckets:
@@ -81,7 +81,7 @@ variables:
 
   isochrone_input_table:
     description: "Full table name for isochrone input"
-    default: "retail_consumer_goods.geospatial_site_selection.rmc_retail_locations_grocery"
+    default: "jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery"
 
   isochrone_output_table_name:
     description: "Output table name (with silver_ prefix)"
@@ -95,4 +95,4 @@ variables:
   # Notifications
   user_email:
     description: "Email address for job notifications"
-    default: "samyuktha.thumala@databricks.com"
+    default: "jonathan.whiteley@databricks.com"

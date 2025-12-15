@@ -27,8 +27,8 @@ isochrone:
 
   # Input location tables
   input_tables:
-    rmc: "retail_consumer_goods.geospatial_site_selection.rmc_retail_locations_grocery"
-    competitors: "retail_consumer_goods.geospatial_site_selection.competitor_locations"
+    rmc: "jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery"
+    competitors: "jdub_demo_aws.geospatial_site_selection.competitor_locations"
 
   # Output table names (will be created in Silver schema)
   output_tables:
@@ -42,7 +42,7 @@ urbanicity_routing:
   enabled: true
 
   # H3 features table containing urbanicity_category
-  h3_features_table: "retail_consumer_goods.geospatial_site_selection.silver_h3_features"
+  h3_features_table: "jdub_demo_aws.geospatial_site_selection.silver_h3_features"
 
   # Drive time in minutes for each urbanicity category
   # Categories: urban, suburban, rural (from h3_features_gold.urbanicity_category)

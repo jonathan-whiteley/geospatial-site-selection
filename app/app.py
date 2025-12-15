@@ -322,10 +322,10 @@ with tab1:
                    e.poi_count_amenity, e.poi_count_leisure, e.poi_count_shop, e.poi_count_tourism,
                    e.poi_count_office, e.poi_count_public_transport,
                    r.address, r.zip_code
-            FROM retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_location_sales s
-            JOIN retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_location_sales s
+            JOIN jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
                 ON s.store_number = e.store_number
-            JOIN retail_consumer_goods.geospatial_site_selection.rmc_retail_locations_grocery r
+            JOIN jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery r
                 ON s.store_number = r.store_number
         """)
 
@@ -333,7 +333,7 @@ with tab1:
         try:
             isochrones = query(user_token, """
                 SELECT store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-                FROM retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features
+                FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features
             """)
         except:
             # If isochrone query fails, create empty dataframe
@@ -362,7 +362,7 @@ with tab1:
         # Load MA state boundary
         ma_boundary = query(user_token, """
             SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM retail_consumer_goods.geospatial_site_selection.bronze_census_states
+            FROM jdub_demo_aws.geospatial_site_selection.bronze_census_states
             WHERE state_abbr = 'MA'
         """)
 
@@ -541,7 +541,7 @@ with tab2:
             SELECT store_number, city, state, latitude, longitude,
                    predicted_annual_sales, total_population, total_poi_count,
                    commute_under_10_min
-            FROM retail_consumer_goods.geospatial_site_selection.gold_seed_points_expansion_top_25
+            FROM jdub_demo_aws.geospatial_site_selection.gold_seed_points_expansion_top_25
         """)
 
     if not candidates.empty:
@@ -598,7 +598,7 @@ with tab2:
         # Load MA state boundary
         ma_boundary = query(user_token, """
             SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM retail_consumer_goods.geospatial_site_selection.bronze_census_states
+            FROM jdub_demo_aws.geospatial_site_selection.bronze_census_states
             WHERE state_abbr = 'MA'
         """)
 
@@ -627,10 +627,10 @@ with tab2:
             SELECT s.store_number, s.city, s.state, s.annual_sales,
                    e.latitude, e.longitude,
                    r.address, r.zip_code
-            FROM retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_location_sales s
-            JOIN retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_location_sales s
+            JOIN jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
                 ON s.store_number = e.store_number
-            JOIN retail_consumer_goods.geospatial_site_selection.rmc_retail_locations_grocery r
+            JOIN jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery r
                 ON s.store_number = r.store_number
         """)
         if not current_stores.empty:
@@ -701,7 +701,7 @@ with tab3:
     with st.spinner("Loading optimization data..."):
         existing = query(user_token, """
             SELECT e.latitude, e.longitude
-            FROM retail_consumer_goods.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
         """)
 
         if using_preselected:
@@ -714,7 +714,7 @@ with tab3:
             candidates = query(user_token, """
                 SELECT store_number, city, state, latitude, longitude, predicted_annual_sales,
                        total_population
-                FROM retail_consumer_goods.geospatial_site_selection.gold_seed_points_expansion_top_25
+                FROM jdub_demo_aws.geospatial_site_selection.gold_seed_points_expansion_top_25
             """)
 
     if not existing.empty and not candidates.empty:
@@ -852,14 +852,14 @@ with tab3:
 
                         # Create the expansion_locations_final table by joining with enriched data
                         save_query = f"""
-                        CREATE OR REPLACE TABLE retail_consumer_goods.geospatial_site_selection.gold_expansion_locations_final AS
+                        CREATE OR REPLACE TABLE jdub_demo_aws.geospatial_site_selection.gold_expansion_locations_final AS
                         SELECT e.*
-                        FROM retail_consumer_goods.geospatial_site_selection.gold_seed_point_isochrones_features e
+                        FROM jdub_demo_aws.geospatial_site_selection.gold_seed_point_isochrones_features e
                         WHERE e.store_number IN ({store_numbers_str})
                         """
 
                         query(user_token, save_query)
-                        st.success(f"✓ Saved {len(store_numbers)} locations to retail_consumer_goods.geospatial_site_selection.gold_expansion_locations_final")
+                        st.success(f"✓ Saved {len(store_numbers)} locations to jdub_demo_aws.geospatial_site_selection.gold_expansion_locations_final")
                     except Exception as e:
                         st.error(f"Failed to save results: {e}")
     else:
