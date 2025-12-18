@@ -1,0 +1,542 @@
+---
+description: Databricks AI/GenAI Development - LLM, RAG, Vector Search, Agent Bricks, and Prompt Engineering
+globs: *.py,*.ipynb
+alwaysApply: false
+priority: high
+relatedAgents: vector-search-embeddings, rag-systems, llm-fine-tuning, agent-frameworks, llm-evaluation, prompt-engineering, agentbricks-specialist
+---
+
+# Databricks AI/GenAI Development
+
+## Overview
+This rule covers generative AI development on Databricks, including LLM integration, RAG systems with Vector Search, Agent Bricks automation, prompt engineering, LLM fine-tuning, and responsible AI practices.
+
+## Core Principles
+
+1. **Foundation Model API**: Use Databricks Foundation Model API or Model Serving for LLM inference
+2. **Vector Search for RAG**: Implement RAG with Databricks Vector Search and Delta Sync
+3. **Agent Bricks Automation**: Leverage Agent Bricks for common AI use cases
+4. **Prompt Management**: Version control and log all prompts with inference requests
+5. **Guardrails & Safety**: Implement input validation, output filtering, and PII detection
+
+## Patterns & Best Practices
+
+### LLM Integration with Foundation Model API
+
+**Basic LLM Invocation:**
+```python
+import mlflow.deployments
+
+# Initialize client
+client = mlflow.deployments.get_deploy_client("databricks")
+
+# Query Foundation Model API
+response = client.predict(
+    endpoint="databricks-llama-2-70b-chat",
+    inputs={
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What are the key principles of RAG systems?"}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+)
+
+print(response['choices'][0]['message']['content'])
+```
+
+**Using External Model Serving:**
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
+
+w = WorkspaceClient()
+
+# Query custom deployed model
+response = w.serving_endpoints.query(
+    name="my-llm-endpoint",
+    messages=[
+        ChatMessage(role=ChatMessageRole.SYSTEM, content="You are an AI assistant."),
+        ChatMessage(role=ChatMessageRole.USER, content="Explain vector databases.")
+    ],
+    temperature=0.7,
+    max_tokens=300
+)
+
+print(response.choices[0].message.content)
+```
+
+**Batch LLM Processing:**
+```python
+from pyspark.sql.functions import pandas_udf, col
+import pandas as pd
+
+# Define UDF for batch LLM inference
+@pandas_udf("string")
+def generate_summaries(texts: pd.Series) -> pd.Series:
+    client = mlflow.deployments.get_deploy_client("databricks")
+    
+    summaries = []
+    for text in texts:
+        response = client.predict(
+            endpoint="databricks-llama-2-70b-chat",
+            inputs={
+                "messages": [
+                    {"role": "system", "content": "Summarize the following text concisely."},
+                    {"role": "user", "content": text}
+                ],
+                "max_tokens": 100
+            }
+        )
+        summaries.append(response['choices'][0]['message']['content'])
+    
+    return pd.Series(summaries)
+
+# Apply to DataFrame
+df = spark.table("catalog.schema.documents")
+df_with_summaries = df.withColumn("summary", generate_summaries(col("text")))
+df_with_summaries.write.saveAsTable("catalog.schema.documents_summarized")
+```
+
+### RAG Systems with Vector Search
+
+**Create Vector Search Index:**
+```python
+from databricks.vector_search.client import VectorSearchClient
+
+vsc = VectorSearchClient()
+
+# Create endpoint (one-time setup)
+vsc.create_endpoint(
+    name="my_vector_search_endpoint",
+    endpoint_type="STANDARD"
+)
+
+# Create Delta Sync index (auto-syncs with source table)
+vsc.create_delta_sync_index(
+    endpoint_name="my_vector_search_endpoint",
+    source_table_name="catalog.schema.knowledge_base",
+    index_name="catalog.schema.knowledge_base_index",
+    pipeline_type="TRIGGERED",  # or "CONTINUOUS"
+    primary_key="doc_id",
+    embedding_source_column="text",  # Text column to embed
+    embedding_model_endpoint_name="databricks-bge-large-en"  # Embedding model
+)
+```
+
+**Query Vector Search:**
+```python
+# Get index
+index = vsc.get_index(
+    endpoint_name="my_vector_search_endpoint",
+    index_name="catalog.schema.knowledge_base_index"
+)
+
+# Similarity search
+results = index.similarity_search(
+    query_text="What is Delta Lake?",
+    columns=["doc_id", "text", "metadata"],
+    num_results=5
+)
+
+# Access results
+for doc in results['result']['data_array']:
+    print(f"Doc ID: {doc['doc_id']}")
+    print(f"Text: {doc['text']}")
+    print(f"Score: {doc['score']}")
+    print("---")
+```
+
+**RAG Query Pattern:**
+```python
+import mlflow.deployments
+
+def rag_query(question: str, index_name: str, num_results: int = 3):
+    # 1. Retrieve relevant documents
+    vsc = VectorSearchClient()
+    index = vsc.get_index(index_name=index_name)
+    
+    search_results = index.similarity_search(
+        query_text=question,
+        columns=["text", "source_doc"],
+        num_results=num_results
+    )
+    
+    # 2. Construct context from retrieved docs
+    context = "\n\n".join([
+        f"Source: {doc['source_doc']}\n{doc['text']}"
+        for doc in search_results['result']['data_array']
+    ])
+    
+    # 3. Generate answer with LLM
+    client = mlflow.deployments.get_deploy_client("databricks")
+    
+    prompt = f"""Use the following context to answer the question. 
+If the answer is not in the context, say "I don't have enough information to answer."
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+    
+    response = client.predict(
+        endpoint="databricks-llama-2-70b-chat",
+        inputs={
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 300
+        }
+    )
+    
+    return {
+        "answer": response['choices'][0]['message']['content'],
+        "sources": [doc['source_doc'] for doc in search_results['result']['data_array']]
+    }
+
+# Use RAG
+result = rag_query("What are the ACID properties of Delta Lake?", "catalog.schema.delta_docs_index")
+print(f"Answer: {result['answer']}")
+print(f"Sources: {result['sources']}")
+```
+
+### Agent Bricks Implementation
+
+**Information Extraction Agent:**
+```python
+# Agent Bricks automatically creates optimized extraction agents via UI
+# Access via serving endpoint after creation
+
+import requests
+import os
+
+# Query Information Extraction endpoint
+endpoint_url = "https://your-workspace.cloud.databricks.com/serving-endpoints/invoice-extractor/invocations"
+headers = {
+    "Authorization": f"Bearer {os.environ['DATABRICKS_TOKEN']}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "inputs": {
+        "document_text": """
+        INVOICE
+        From: Acme Corp
+        Date: 2024-10-15
+        Amount: $1,250.00
+        Items:
+        - Widget A: $500
+        - Widget B: $750
+        """
+    }
+}
+
+response = requests.post(endpoint_url, headers=headers, json=data)
+extracted_data = response.json()
+
+# Output: {"vendor": "Acme Corp", "date": "2024-10-15", "amount": 1250.00, ...}
+```
+
+**Custom LLM Agent (Domain-Specific):**
+```python
+# Created via Agent Bricks UI for specific tasks like summarization
+# Query the deployed custom LLM endpoint
+
+response = requests.post(
+    f"{workspace_url}/serving-endpoints/product-description-generator/invocations",
+    headers=headers,
+    json={
+        "inputs": {
+            "product_name": "Enterprise Data Lakehouse",
+            "features": ["Unity Catalog", "Delta Lake", "Serverless SQL"],
+            "target_audience": "CTOs"
+        }
+    }
+)
+
+generated_description = response.json()['generated_text']
+```
+
+**Knowledge Assistant Agent:**
+```python
+# Query Knowledge Assistant for Q&A over documents
+response = requests.post(
+    f"{workspace_url}/serving-endpoints/product-docs-assistant/invocations",
+    headers=headers,
+    json={
+        "messages": [
+            {"role": "user", "content": "How do I configure row-level security in Unity Catalog?"}
+        ]
+    }
+)
+
+answer = response.json()['choices'][0]['message']['content']
+# Answer includes citations from knowledge base
+```
+
+**Multi-Agent Supervisor:**
+```python
+# Orchestrates multiple sub-agents for complex workflows
+response = requests.post(
+    f"{workspace_url}/serving-endpoints/contract-processor-supervisor/invocations",
+    headers=headers,
+    json={
+        "inputs": {
+            "document": contract_text,
+            "tasks": [
+                "extract_key_terms",
+                "analyze_risks",
+                "generate_summary"
+            ]
+        }
+    }
+)
+
+# Supervisor routes to: extraction → risk analysis → summarization agents
+result = response.json()
+```
+
+### Prompt Engineering
+
+**Prompt Template Management:**
+```python
+# Version control prompts
+PROMPT_VERSION = "v2.1"
+
+SYSTEM_PROMPT = """You are a Databricks AI assistant specializing in data engineering.
+Your responses should:
+1. Be technically accurate
+2. Include code examples when relevant
+3. Reference official Databricks documentation
+4. Consider production best practices
+"""
+
+USER_PROMPT_TEMPLATE = """
+Question: {question}
+
+Context: {context}
+
+Please provide a detailed answer with:
+- Step-by-step instructions
+- Code examples (if applicable)
+- Best practices
+- Potential pitfalls to avoid
+"""
+
+# Log prompts with MLflow
+import mlflow
+
+with mlflow.start_run():
+    mlflow.log_param("prompt_version", PROMPT_VERSION)
+    mlflow.log_text(SYSTEM_PROMPT, "prompts/system_prompt.txt")
+    mlflow.log_text(USER_PROMPT_TEMPLATE, "prompts/user_prompt_template.txt")
+```
+
+**Few-Shot Prompting:**
+```python
+few_shot_prompt = """You are a data quality expert. Extract data quality issues from text.
+
+Examples:
+
+Input: "The orders table has null values in the customer_id column."
+Output: {"issue": "null_values", "table": "orders", "column": "customer_id", "severity": "high"}
+
+Input: "Sales data shows duplicates based on transaction_id."
+Output: {"issue": "duplicates", "table": "sales", "column": "transaction_id", "severity": "medium"}
+
+Now extract from:
+Input: "{input_text}"
+Output:"""
+
+# Use with LLM
+response = client.predict(
+    endpoint="databricks-llama-2-70b-chat",
+    inputs={
+        "messages": [{"role": "user", "content": few_shot_prompt.format(input_text=user_input)}],
+        "temperature": 0.0
+    }
+)
+```
+
+**Chain-of-Thought Prompting:**
+```python
+cot_prompt = """Let's solve this step by step:
+
+Question: {question}
+
+1. First, let's identify the key components of the problem.
+2. Next, let's consider relevant Databricks features or APIs.
+3. Then, let's outline the solution approach.
+4. Finally, let's provide the complete solution with code.
+
+Step 1:"""
+
+# Encourages reasoning before answering
+```
+
+### LLM Fine-Tuning
+
+**Prepare Training Data:**
+```python
+# Create training dataset in Delta table
+training_data = [
+    {
+        "messages": [
+            {"role": "user", "content": "How do I create a Delta table?"},
+            {"role": "assistant", "content": "To create a Delta table, use: df.write.format('delta').saveAsTable('catalog.schema.table')"}
+        ]
+    },
+    {
+        "messages": [
+            {"role": "user", "content": "How do I enable CDC on a table?"},
+            {"role": "assistant", "content": "Enable Change Data Feed with: ALTER TABLE catalog.schema.table SET TBLPROPERTIES (delta.enableChangeDataFeed = true)"}
+        ]
+    }
+]
+
+spark.createDataFrame(training_data).write.format("delta").saveAsTable("catalog.ml.llm_training_data")
+```
+
+**Fine-Tune with Databricks:**
+```python
+# Fine-tuning typically done via Databricks UI or API
+# Reference training data location and base model
+
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()
+
+# Create fine-tuning run (example - actual API may vary)
+# Fine-tuning creates a new model in Unity Catalog
+fine_tuned_model = "catalog.ml.models.databricks_assistant_finetuned"
+```
+
+### Guardrails & Safety
+
+**Input Validation:**
+```python
+import re
+
+def validate_input(user_input: str) -> tuple[bool, str]:
+    """Validate user input for safety"""
+    
+    # Check length
+    if len(user_input) > 10000:
+        return False, "Input too long"
+    
+    # Check for prompt injection patterns
+    injection_patterns = [
+        r"ignore previous instructions",
+        r"disregard all prior",
+        r"system:\s*you are now",
+        r"<\|im_start\|>",
+    ]
+    
+    for pattern in injection_patterns:
+        if re.search(pattern, user_input, re.IGNORECASE):
+            return False, "Potential prompt injection detected"
+    
+    # Check for PII (basic patterns)
+    pii_patterns = [
+        r"\b\d{3}-\d{2}-\d{4}\b",  # SSN
+        r"\b\d{16}\b",  # Credit card
+        r"\b[A-Z]{2}\d{6}\b",  # Passport
+    ]
+    
+    for pattern in pii_patterns:
+        if re.search(pattern, user_input):
+            return False, "PII detected in input"
+    
+    return True, "Valid"
+
+# Use before LLM call
+is_valid, message = validate_input(user_query)
+if not is_valid:
+    raise ValueError(f"Invalid input: {message}")
+```
+
+**Output Filtering:**
+```python
+def filter_output(llm_response: str) -> str:
+    """Filter LLM output for sensitive content"""
+    
+    # Mask PII in output
+    import re
+    
+    # Mask SSN
+    llm_response = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', 'XXX-XX-XXXX', llm_response)
+    
+    # Mask credit cards
+    llm_response = re.sub(r'\b\d{16}\b', 'XXXX-XXXX-XXXX-XXXX', llm_response)
+    
+    # Remove sensitive keywords if present
+    sensitive_keywords = ["password", "api_key", "secret"]
+    for keyword in sensitive_keywords:
+        if keyword in llm_response.lower():
+            llm_response = llm_response.replace(keyword, "[REDACTED]")
+    
+    return llm_response
+```
+
+**LLM Evaluation:**
+```python
+import mlflow
+
+# Log LLM evaluation metrics
+with mlflow.start_run():
+    # Evaluate with MLflow
+    eval_data = pd.DataFrame({
+        "inputs": [q1, q2, q3],
+        "ground_truth": [a1, a2, a3]
+    })
+    
+    results = mlflow.evaluate(
+        model="models:/catalog.schema.rag_model@champion",
+        data=eval_data,
+        targets="ground_truth",
+        model_type="question-answering",
+        evaluators=["default"]  # Uses metrics like relevance, faithfulness
+    )
+    
+    print(f"Relevance: {results.metrics['relevance']}")
+    print(f"Faithfulness: {results.metrics['faithfulness']}")
+```
+
+## Related Granular Agents
+
+- **vector-search-embeddings**: Use for Vector Search setup, Delta Sync indexes, embedding model selection
+- **rag-systems**: Use for RAG architecture, retrieval optimization, hybrid search patterns
+- **llm-fine-tuning**: Use for LoRA/PEFT fine-tuning, training workflows, model evaluation
+- **agent-frameworks**: Use for LangChain, LlamaIndex, tool-calling agents, multi-agent systems
+- **llm-evaluation**: Use for LLM metrics, evaluation frameworks, prompt testing strategies
+- **prompt-engineering**: Use for prompt optimization, few-shot learning, prompt versioning
+- **agentbricks-specialist**: Use for Agent Bricks automation (Information Extraction, Custom LLM, Knowledge Assistant, Multi-Agent Supervisor)
+
+## Common Anti-Patterns
+
+- ❌ Not using Vector Search for RAG → ✅ Use Databricks Vector Search with Delta Sync
+- ❌ Hardcoded prompts in code → ✅ Version control and log prompts with MLflow
+- ❌ No input validation → ✅ Implement guardrails for prompt injection and PII
+- ❌ Not citing sources in RAG → ✅ Always return source documents with answers
+- ❌ Using wrong embedding model → ✅ Choose embedding model based on domain and language
+- ❌ No LLM evaluation → ✅ Track relevance, faithfulness, toxicity, and bias metrics
+- ❌ Expensive models for simple tasks → ✅ Use Agent Bricks auto-optimization
+
+## References
+
+- [Foundation Model API](https://docs.databricks.com/machine-learning/foundation-models/)
+- [Vector Search](https://docs.databricks.com/generative-ai/vector-search.html)
+- [Agent Bricks](https://docs.databricks.com/generative-ai/agent-bricks/)
+- [RAG Guide](https://docs.databricks.com/generative-ai/retrieval-augmented-generation.html)
+- [LLM Fine-Tuning](https://docs.databricks.com/machine-learning/model-training/fine-tune-llms.html)
+- [Prompt Engineering Best Practices](https://docs.databricks.com/generative-ai/prompt-engineering.html)
+
+---
+**Version**: 1.0.0  
+**Validated with Glean MCP**: 2025-10-31 ✅  
+**Last Updated**: 2025-10-31  
+**Glean Validation**: Confirmed alignment with Foundation Model API, RAG with Vector Search, Agent Bricks, and responsible AI best practices

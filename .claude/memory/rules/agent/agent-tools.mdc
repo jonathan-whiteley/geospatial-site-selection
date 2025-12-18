@@ -1,0 +1,394 @@
+---
+description: AI Agent Tools - Context7 MCP, Glean MCP, Web Search, and Research Patterns
+globs:
+alwaysApply: true
+priority: high
+relatedAgents:
+---
+
+# AI Agent Tools
+
+## Overview
+This rule defines when and how AI agents should use external tools like Context7 MCP for documentation retrieval, Glean MCP for internal knowledge search, web search for current information, and research patterns for comprehensive answers.
+
+## Core Principles
+
+1. **Research First**: Use tools proactively before answering
+2. **Verify with Sources**: Cite sources when providing information
+3. **Current Information**: Use web search for time-sensitive queries
+4. **Internal Knowledge**: Use Glean MCP for Databricks-specific practices
+5. **Documentation Context**: Use Context7 for official API documentation
+
+## Tool Selection Guide
+
+### Context7 MCP - For Official Documentation
+
+**When to Use:**
+- User asks about API usage, syntax, or parameters
+- Need official documentation examples
+- Clarifying framework-specific behavior
+- Version-specific features
+
+**Supported Documentation:**
+```
+Databricks:
+- Unity Catalog APIs
+- Delta Lake operations
+- MLflow tracking
+- Databricks SDK
+
+Frameworks:
+- FastAPI
+- React
+- TypeScript
+- Python standard library
+```
+
+**Usage Pattern:**
+```
+User: "How do I use the Databricks SDK to create a job?"
+
+Tool: mcp_context7_search(
+    query="Databricks SDK create job Python",
+    sources=["databricks-sdk-python"]
+)
+
+Response:
+"Using the Databricks SDK to create a job:
+
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.jobs import Task, NotebookTask
+
+w = WorkspaceClient()
+
+j = w.jobs.create(
+    name="my-job",
+    tasks=[
+        Task(
+            task_key="main_task",
+            notebook_task=NotebookTask(
+                notebook_path="/path/to/notebook",
+                source="WORKSPACE"
+            ),
+            new_cluster={...}
+        )
+    ]
+)
+```
+
+[Source: Databricks SDK Documentation]"
+```
+
+### Glean MCP - For Internal Best Practices
+
+**When to Use:**
+- Databricks-specific best practices
+- Internal implementation patterns
+- Architecture decisions
+- Platform-specific gotchas
+- Performance optimization strategies
+
+**Query Patterns:**
+```python
+# Best practices query
+mcp_glean_search(query="Unity Catalog best practices")
+
+# Specific feature implementation
+mcp_glean_search(query="Delta Live Tables data quality expectations")
+
+# Troubleshooting patterns
+mcp_glean_search(query="Vector Search performance optimization")
+
+# Architecture patterns
+mcp_glean_chat(message="What are the best practices for Databricks Apps deployment?")
+```
+
+**Usage Example:**
+```
+User: "What's the best way to implement medallion architecture?"
+
+Tool: mcp_glean_search(
+    query="medallion architecture Bronze Silver Gold best practices"
+)
+
+Response:
+"Medallion architecture best practices:
+
+**Bronze Layer (Raw):**
+- Store exact copy of source data
+- Use Auto Loader for incremental ingestion
+- Append-only, immutable
+- Retain long-term for reprocessing
+
+**Silver Layer (Cleaned):**
+- Apply data quality rules
+- Deduplicate and standardize
+- Enforce schema
+- SCD Type 2 for dimension tracking
+
+**Gold Layer (Business):**
+- Aggregated, business-ready tables
+- Optimized for query performance
+- Feature tables for ML
+- Highly curated
+
+[Source: Internal Databricks Best Practices Guide]"
+```
+
+### Web Search - For Current Information
+
+**When to Use:**
+- Time-sensitive information (current dates, versions)
+- Recent platform updates or announcements
+- Community discussions and solutions
+- Verification of latest features
+
+**Query Patterns:**
+```python
+# Current version information
+web_search(search_term="Databricks Runtime 14.3 release date")
+
+# Recent announcements
+web_search(search_term="Databricks Unity Catalog new features 2024")
+
+# Community solutions
+web_search(search_term="Databricks Vector Search performance tuning site:stackoverflow.com")
+```
+
+**Usage Example:**
+```
+User: "What's new in the latest Databricks Runtime?"
+
+Tool: web_search(search_term="Databricks Runtime latest version 2024")
+
+Response:
+"As of October 2024, Databricks Runtime 14.3 LTS includes:
+
+- **Serverless Compute GA**: Production-ready serverless clusters
+- **Unity Catalog Enhancements**: Row/column-level security
+- **Delta Lake 3.0**: Liquid Clustering, Predictive Optimization
+- **MLflow 2.9**: Enhanced model serving, A/B testing support
+
+[Source: Databricks Blog, October 2024]"
+```
+
+## Research Patterns
+
+### Comprehensive Research Flow
+
+**For Complex Questions:**
+```
+1. Check Glean MCP for internal best practices
+2. Check Context7 for official documentation
+3. Use web search for current information if needed
+4. Synthesize information from all sources
+5. Provide consolidated answer with citations
+```
+
+**Example:**
+```
+User: "How should I implement a production RAG system on Databricks?"
+
+Research Flow:
+1. Glean: "Databricks RAG system best practices"
+2. Glean: "Vector Search production patterns"
+3. Context7: "Databricks Vector Search API"
+4. Web Search: "RAG evaluation metrics 2024"
+
+Response:
+"Production RAG system on Databricks:
+
+**1. Vector Search Setup:**
+```python
+from databricks.vector_search.client import VectorSearchClient
+
+vsc = VectorSearchClient()
+vsc.create_delta_sync_index(
+    endpoint_name="rag_endpoint",
+    index_name="main.rag.knowledge_base_index",
+    source_table_name="main.rag.documents",
+    pipeline_type="TRIGGERED",
+    primary_key="doc_id",
+    embedding_source_column="text",
+    embedding_model_endpoint_name="databricks-bge-large-en"
+)
+```
+[Source: Databricks SDK Documentation]
+
+**2. Query Pattern:**
+- Retrieve top-k relevant documents (k=3-5)
+- Rerank results for relevance
+- Inject context into LLM prompt
+- Use Foundation Model API for generation
+[Source: Internal RAG Best Practices]
+
+**3. Evaluation:**
+- Track relevance, faithfulness, toxicity metrics
+- Use MLflow for experiment tracking
+- A/B test prompt variations
+[Source: RAG Evaluation Framework 2024]
+
+**4. Production Considerations:**
+- Enable Delta Sync for automatic index updates
+- Use Model Serving for endpoint deployment
+- Implement caching for frequent queries
+- Monitor query latency and relevance
+[Source: Internal Production Patterns]"
+```
+
+### Validation Pattern
+
+**Verify Information Across Sources:**
+```
+When providing technical information:
+1. Check at least 2 sources when possible
+2. Note discrepancies between sources
+3. Prefer official documentation over community sources
+4. Cite conflicting information explicitly
+
+Example:
+"According to the official Databricks documentation, Unity Catalog
+supports three levels: catalog.schema.table.
+
+Note: Some community articles mention a four-level structure,
+but this is incorrect or refers to older implementations."
+```
+
+## Tool-Specific Workflows
+
+### Context7 MCP Workflow
+
+**Step-by-Step:**
+```
+1. Identify documentation need
+2. Formulate specific query (API name, method, parameters)
+3. Call mcp_context7_search with relevant sources
+4. Extract relevant code examples and explanations
+5. Adapt to user's specific context
+6. Cite source documentation
+```
+
+**Example Query Formulation:**
+```
+User question: "How do I set cluster autoscaling?"
+
+❌ BAD query: "autoscaling"
+✅ GOOD query: "Databricks cluster autoscaling configuration min_workers max_workers"
+```
+
+### Glean MCP Workflow
+
+**Search vs. Chat:**
+```
+Use mcp_glean_search when:
+- Looking for specific documents or guides
+- Need exact matches for terms
+- Want to see multiple relevant sources
+
+Use mcp_glean_chat when:
+- Need synthesis across multiple sources
+- Asking conceptual questions
+- Want interpreted/analyzed information
+```
+
+**Example:**
+```
+Search: mcp_glean_search(query="Delta Live Tables expectations")
+→ Returns: List of docs about DLT expectations
+
+Chat: mcp_glean_chat(message="What are the best practices for Delta Live Tables data quality expectations?")
+→ Returns: Synthesized best practices with recommendations
+```
+
+### Web Search Workflow
+
+**Query Optimization:**
+```
+Include:
+- Specific technology/platform name
+- Version number if relevant
+- Year for time-sensitive queries
+- Site restrictions for authoritative sources
+
+Examples:
+✅ "Databricks Vector Search performance tuning 2024"
+✅ "Delta Lake liquid clustering vs z-ordering"
+✅ "MLflow model registry Unity Catalog migration site:databricks.com"
+
+❌ "vector search" (too broad)
+❌ "databricks help" (vague)
+```
+
+## Citation Standards
+
+### Source Attribution
+
+**Always cite sources:**
+```
+[Source: Databricks Official Documentation]
+[Source: Internal Best Practices Guide]
+[Source: Databricks Blog, October 2024]
+[Source: Stack Overflow Community]
+```
+
+**Multiple Sources:**
+```
+"According to Databricks documentation, Unity Catalog uses
+a three-level namespace. Internal best practices recommend
+organizing by business domain [Source: Databricks Docs, 
+Internal Architecture Guide]."
+```
+
+### Handling Conflicts
+
+**When Sources Disagree:**
+```
+"The official documentation recommends approach A for [reason].
+However, internal best practices suggest approach B for [reason].
+
+Choose based on your requirements:
+- Use A if: [criteria]
+- Use B if: [criteria]
+
+[Sources: Official Docs, Internal Guide]"
+```
+
+## Tool Usage Checklist
+
+**Before Answering Technical Questions:**
+- [ ] Is this question covered by official documentation? → Use Context7
+- [ ] Are there Databricks-specific best practices? → Use Glean
+- [ ] Is current/recent information needed? → Use Web Search
+- [ ] Do I need to verify across multiple sources? → Use multiple tools
+
+**After Tool Usage:**
+- [ ] Information from tool incorporated into answer
+- [ ] Sources cited appropriately
+- [ ] Conflicts or discrepancies noted
+- [ ] Answer adapted to user's specific context
+
+## Related Granular Agents
+
+*This rule applies to all AI agent tool usage, not specific to any granular agent.*
+
+## Common Anti-Patterns
+
+- ❌ Answering without research → ✅ Use tools proactively
+- ❌ No source citations → ✅ Always cite sources
+- ❌ Ignoring tool results → ✅ Incorporate tool findings
+- ❌ Vague search queries → ✅ Specific, targeted queries
+- ❌ Using wrong tool → ✅ Match tool to information need
+- ❌ Single-source answers → ✅ Verify with multiple sources when possible
+
+## References
+
+- Context7 MCP: Internal tool for documentation search
+- Glean MCP: Internal knowledge management platform
+- Web Search: Real-time internet information retrieval
+
+---
+**Version**: 1.0.0  
+**Validated with Glean MCP**: N/A (General tool usage guidelines)  
+**Last Updated**: 2025-10-31  
+**Note**: This rule defines tool usage patterns for AI assistants (Context7, Glean, Web Search), not Databricks-specific practices

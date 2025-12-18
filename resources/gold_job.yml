@@ -3,6 +3,31 @@ resources:
     gold_feature_engineering:
       name: "Gold - H3 Feature Engineering"
 
+      # Queue configuration for serverless cost optimization
+      queue:
+        enabled: true
+
+      # Email notifications
+      email_notifications:
+        on_failure:
+          - "${var.user_email}"
+
+      # Job-level timeout (3 hours)
+      timeout_seconds: 10800
+
+      # Job-level tags
+      tags:
+        Environment: "${bundle.target}"
+        Layer: "gold"
+        Pipeline: "feature_engineering"
+
+      # Serverless environment definition
+      environments:
+        - environment_key: "Serverless"
+          spec:
+            dependencies:
+              - "pyyaml"
+
       tasks:
         - task_key: "create_h3_features"
           notebook_task:
@@ -15,25 +40,7 @@ resources:
               state_fips: "${var.state_fips}"
               config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
 
-          libraries:
-            - pypi:
-                package: pyyaml
-
-          new_cluster:
-            num_workers: 4
-            node_type_id: "${var.node_type}"
-            spark_version: "17.3.x-scala2.13"
-            runtime_engine: "PHOTON"
-            data_security_mode: "SINGLE_USER"
-            spark_conf:
-              "spark.sql.adaptive.enabled": "true"
-              "spark.databricks.delta.retentionDurationCheck.enabled": "false"
-              "spark.databricks.delta.optimizeWrite.enabled": "true"
-              "spark.databricks.delta.autoCompact.enabled": "true"
-            custom_tags:
-              Environment: "${bundle.target}"
-              Layer: "gold"
-              Source: "h3_features"
+          environment_key: "Serverless"
 
           timeout_seconds: 7200
           max_retries: 2
@@ -49,23 +56,7 @@ resources:
               gold_schema: "${var.schema}"
               config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
 
-          libraries:
-            - pypi:
-                package: pyyaml
-
-          new_cluster:
-            num_workers: 4
-            node_type_id: "${var.node_type}"
-            spark_version: "17.3.x-scala2.13"
-            runtime_engine: "PHOTON"
-            data_security_mode: "SINGLE_USER"
-            spark_conf:
-              "spark.sql.adaptive.enabled": "true"
-              "spark.databricks.delta.optimizeWrite.enabled": "true"
-            custom_tags:
-              Environment: "${bundle.target}"
-              Layer: "gold"
-              Source: "rmc_trade_area_features"
+          environment_key: "Serverless"
 
           timeout_seconds: 3600
           max_retries: 2
@@ -83,23 +74,7 @@ resources:
               trade_area_table: "${var.catalog}.${var.schema}.silver_seed_points_isochrones"
               output_table_override: "seed_points_trade_area_features"
 
-          libraries:
-            - pypi:
-                package: pyyaml
-
-          new_cluster:
-            num_workers: 4
-            node_type_id: "${var.node_type}"
-            spark_version: "17.3.x-scala2.13"
-            runtime_engine: "PHOTON"
-            data_security_mode: "SINGLE_USER"
-            spark_conf:
-              "spark.sql.adaptive.enabled": "true"
-              "spark.databricks.delta.optimizeWrite.enabled": "true"
-            custom_tags:
-              Environment: "${bundle.target}"
-              Layer: "gold"
-              Source: "seed_points_trade_area_features"
+          environment_key: "Serverless"
 
           timeout_seconds: 3600
           max_retries: 2
@@ -113,19 +88,7 @@ resources:
               catalog: "${var.catalog}"
               gold_schema: "${var.schema}"
 
-          new_cluster:
-            num_workers: 2
-            node_type_id: "${var.node_type}"
-            spark_version: "17.3.x-scala2.13"
-            runtime_engine: "PHOTON"
-            data_security_mode: "SINGLE_USER"
-            spark_conf:
-              "spark.sql.adaptive.enabled": "true"
-              "spark.databricks.delta.optimizeWrite.enabled": "true"
-            custom_tags:
-              Environment: "${bundle.target}"
-              Layer: "gold"
-              Source: "seed_points_expansion"
+          environment_key: "Serverless"
 
           timeout_seconds: 3600
           max_retries: 2

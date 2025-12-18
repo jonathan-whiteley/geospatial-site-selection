@@ -28,3 +28,10 @@ resources:
       schema_name: "${var.schema}"
       volume_type: "MANAGED"
       comment: "Processed GraphHopper routing graph data"
+
+    valhalla_data_volume:
+      name: "valhalla_data"
+      catalog_name: "${var.catalog}"
+      schema_name: "${var.schema}"
+      volume_type: "MANAGED"
+      comment: "Valhalla routing tiles and configuration files"

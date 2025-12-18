@@ -12,6 +12,7 @@ include:
 sync:
   include:
     - "resources/configs/*.yml"
+    - "resources/configs/*.json"
 
 targets:
   production:
@@ -19,10 +20,12 @@ targets:
     default: true
     workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com
-      root_path: /Workspace/Demo Assets/Retail_Consumer_Goods/geospatial-site-selection
+      root_path: /Workspace/Users/jonathan.whiteley@databricks.com/projects/geospatial-site-selection
     variables:
       catalog: jdub_demo_aws
       schema: geospatial_site_selection
+      valhalla_cluster_id: "1216-204746-w1azw45u"
+      mapbox_token: "pk.eyJ1IjoiandoaXRlbGV5NTI4MCIsImEiOiJjbWphbmVxem8wOGFuM2xweXBteHVqc2I2In0.d-Du72-AiqWe0j5n106UKw"
 
 variables:
   # Unity Catalog
@@ -58,8 +61,16 @@ variables:
 
   # Cluster Configuration
   node_type:
-    description: "Databricks node type"
+    description: "Databricks node type - m5d.xlarge has local storage, m5.xlarge needs EBS"
     default: "m5d.xlarge"
+
+  valhalla_cluster_id:
+    description: "Existing cluster ID for Valhalla tasks (e.g., Field Eng Shared UC LTS Cluster)"
+    default: ""
+
+  mapbox_token:
+    description: "Mapbox API access token for isochrone generation (get free at https://account.mapbox.com/)"
+    default: ""
 
   # GraphHopper Configuration
   graphhopper_volume:

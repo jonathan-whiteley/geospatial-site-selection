@@ -1,0 +1,686 @@
+---
+description: Frontend Development with React TypeScript and Databricks Apps UI Patterns
+globs: *.tsx,*.ts,*.css,*.jsx,*.js,package.json
+alwaysApply: false
+priority: medium
+relatedAgents: databricks-apps-specialist
+---
+
+# Frontend Development
+
+## Overview
+This rule covers frontend development patterns for Databricks Apps, including React TypeScript component structure, state management, styling with Design Bricks, API integration, build process, and deployment considerations.
+
+## Core Principles
+
+1. **TypeScript Strict Mode**: Enable strict type checking for type safety
+2. **Functional Components**: Use functional components with hooks (no class components)
+3. **Design Bricks UI**: Use Databricks Design Bricks components for consistent UI
+4. **Build Before Deploy**: Always build production assets before Databricks Apps deployment
+5. **API via Services**: Abstract all API calls into service layer functions
+
+## Patterns & Best Practices
+
+### Project Structure
+
+**Frontend Directory Layout:**
+```
+frontend/
+├── src/
+│   ├── components/           # Reusable UI components
+│   │   ├── Button.tsx
+│   │   ├── Card.tsx
+│   │   └── DataTable.tsx
+│   ├── pages/                # Page-level components
+│   │   ├── Home.tsx
+│   │   ├── Dashboard.tsx
+│   │   └── Settings.tsx
+│   ├── services/             # API service wrappers
+│   │   ├── api.ts
+│   │   └── auth.ts
+│   ├── hooks/                # Custom React hooks
+│   │   ├── useAuth.ts
+│   │   └── useData.ts
+│   ├── store/                # State management
+│   │   └── appStore.ts
+│   ├── types/                # TypeScript type definitions
+│   │   └── index.ts
+│   ├── utils/                # Utility functions
+│   │   └── helpers.ts
+│   ├── styles/               # Global styles and themes
+│   │   ├── globals.css
+│   │   └── theme.ts
+│   ├── App.tsx               # Root component
+│   ├── main.tsx              # Entry point
+│   └── vite-env.d.ts         # Vite type declarations
+├── public/                   # Static assets
+├── index.html                # HTML template
+├── package.json              # Dependencies
+├── tsconfig.json             # TypeScript config
+└── vite.config.ts            # Build config
+```
+
+### React TypeScript Components
+
+**Functional Component with Props:**
+```typescript
+// types/index.ts
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'user' | 'viewer';
+}
+
+export interface TableData {
+  catalog: string;
+  schema: string;
+  name: string;
+  table_type: string;
+}
+
+// components/UserCard.tsx
+import React from 'react';
+
+interface UserCardProps {
+  user: User;
+  onEdit?: (user: User) => void;
+  onDelete?: (userId: string) => void;
+  isLoading?: boolean;
+}
+
+export const UserCard: React.FC<UserCardProps> = ({
+  user,
+  onEdit,
+  onDelete,
+  isLoading = false
+}) => {
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(user);
+    }
+  };
+
+  const handleDelete = () => {
+    if (onDelete && window.confirm(`Delete user ${user.name}?`)) {
+      onDelete(user.id);
+    }
+  };
+
+  return (
+    <div className="user-card">
+      <h3>{user.name}</h3>
+      <p>{user.email}</p>
+      <span className={`role-badge role-${user.role}`}>{user.role}</span>
+      
+      {!isLoading && (
+        <div className="actions">
+          {onEdit && (
+            <button onClick={handleEdit} className="btn-edit">
+              Edit
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={handleDelete} className="btn-delete">
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+      
+      {isLoading && <div className="loading-spinner">Loading...</div>}
+    </div>
+  );
+};
+```
+
+**Custom Hooks:**
+```typescript
+// hooks/useData.ts
+import { useState, useEffect } from 'react';
+import { fetchTables } from '../services/api';
+import type { TableData } from '../types';
+
+interface UseDataResult {
+  data: TableData[];
+  loading: boolean;
+  error: Error | null;
+  refetch: () => void;
+}
+
+export const useData = (catalog: string, schema: string): UseDataResult => {
+  const [data, setData] = useState<TableData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const tables = await fetchTables(catalog, schema);
+      setData(tables);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [catalog, schema]);
+
+  return { data, loading, error, refetch: fetchData };
+};
+
+// Usage in component
+import { useData } from '../hooks/useData';
+
+const TablesPage: React.FC = () => {
+  const { data, loading, error, refetch } = useData('main', 'default');
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <div>
+      <button onClick={refetch}>Refresh</button>
+      {data.map(table => (
+        <div key={`${table.catalog}.${table.schema}.${table.name}`}>
+          {table.name}
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+### State Management with Zustand
+
+**Global Store:**
+```typescript
+// store/appStore.ts
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { User } from '../types';
+
+interface AppState {
+  currentUser: User | null;
+  theme: 'light' | 'dark';
+  sidebarOpen: boolean;
+  
+  // Actions
+  setCurrentUser: (user: User | null) => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleSidebar: () => void;
+}
+
+export const useAppStore = create<AppState>()(
+  persist(
+    (set) => ({
+      currentUser: null,
+      theme: 'light',
+      sidebarOpen: true,
+      
+      setCurrentUser: (user) => set({ currentUser: user }),
+      setTheme: (theme) => set({ theme }),
+      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+    }),
+    {
+      name: 'app-storage', // localStorage key
+      partialize: (state) => ({ theme: state.theme }), // Only persist theme
+    }
+  )
+);
+
+// Usage in component
+import { useAppStore } from '../store/appStore';
+
+const Header: React.FC = () => {
+  const { currentUser, theme, setTheme, toggleSidebar } = useAppStore();
+
+  return (
+    <header className={`header ${theme}`}>
+      <button onClick={toggleSidebar}>Toggle Sidebar</button>
+      <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+        Switch to {theme === 'light' ? 'Dark' : 'Light'} Mode
+      </button>
+      {currentUser && <span>Welcome, {currentUser.name}</span>}
+    </header>
+  );
+};
+```
+
+### API Integration
+
+**Service Layer:**
+```typescript
+// services/api.ts
+import type { User, TableData } from '../types';
+
+const API_BASE_URL = '/api'; // Proxied to backend
+
+class APIError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
+
+async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new APIError(
+        response.status,
+        errorData.error || `HTTP ${response.status}`
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof APIError) throw error;
+    throw new Error(`Network error: ${error instanceof Error ? error.message : 'Unknown'}`);
+  }
+}
+
+// API functions
+export const fetchUsers = (): Promise<User[]> => {
+  return fetchAPI<User[]>('/users');
+};
+
+export const createUser = (userData: Omit<User, 'id'>): Promise<User> => {
+  return fetchAPI<User>('/users', {
+    method: 'POST',
+    body: JSON.stringify(userData),
+  });
+};
+
+export const fetchTables = (catalog: string, schema: string): Promise<TableData[]> => {
+  return fetchAPI<TableData[]>(`/tables/${catalog}/${schema}`);
+};
+
+export const executeQuery = (query: string, warehouseId: string): Promise<any> => {
+  return fetchAPI('/query', {
+    method: 'POST',
+    body: JSON.stringify({ query, warehouse_id: warehouseId }),
+  });
+};
+
+// Usage with error handling
+import { fetchUsers } from '../services/api';
+
+const UsersPage: React.FC = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const data = await fetchUsers();
+        setUsers(data);
+      } catch (err) {
+        if (err instanceof APIError) {
+          setError(`API Error ${err.status}: ${err.message}`);
+        } else {
+          setError(err instanceof Error ? err.message : 'Unknown error');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, []);
+
+  return (
+    <div>
+      {loading && <p>Loading users...</p>}
+      {error && <div className="error">{error}</div>}
+      {!loading && !error && users.map(user => (
+        <UserCard key={user.id} user={user} />
+      ))}
+    </div>
+  );
+};
+```
+
+### Styling Patterns
+
+**CSS Modules:**
+```typescript
+// components/Button.module.css
+.button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.button.primary {
+  background-color: #0066cc;
+  color: white;
+}
+
+.button.secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+// components/Button.tsx
+import styles from './Button.module.css';
+
+interface ButtonProps {
+  variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+  children: React.ReactNode;
+  onClick?: () => void;
+}
+
+export const Button: React.FC<ButtonProps> = ({
+  variant = 'primary',
+  disabled = false,
+  children,
+  onClick
+}) => {
+  return (
+    <button
+      className={`${styles.button} ${styles[variant]}`}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+};
+```
+
+**Global Theme:**
+```typescript
+// styles/theme.ts
+export const theme = {
+  colors: {
+    primary: '#0066cc',
+    secondary: '#6c757d',
+    success: '#28a745',
+    danger: '#dc3545',
+    warning: '#ffc107',
+    text: {
+      primary: '#212529',
+      secondary: '#6c757d',
+    },
+    background: {
+      default: '#ffffff',
+      paper: '#f8f9fa',
+    },
+  },
+  spacing: {
+    xs: '0.25rem',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+  },
+  typography: {
+    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontSize: {
+      small: '0.875rem',
+      base: '1rem',
+      large: '1.25rem',
+      xlarge: '1.5rem',
+    },
+  },
+  breakpoints: {
+    mobile: '640px',
+    tablet: '768px',
+    desktop: '1024px',
+    wide: '1280px',
+  },
+};
+
+export type Theme = typeof theme;
+```
+
+### Build Configuration
+
+**Vite Config for Databricks Apps:**
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  
+  // Build output to backend/static/
+  build: {
+    outDir: '../backend/static',
+    emptyOutDir: true,
+    sourcemap: false, // Disable for production
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          utils: ['zustand', 'date-fns'],
+        },
+      },
+    },
+  },
+  
+  // Development server config
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+  
+  // Path aliases
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@services': path.resolve(__dirname, './src/services'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@types': path.resolve(__dirname, './src/types'),
+    },
+  },
+});
+```
+
+**Package.json Scripts:**
+```json
+{
+  "name": "databricks-app-frontend",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:prod": "tsc && vite build --mode production",
+    "preview": "vite preview",
+    "lint": "eslint src --ext ts,tsx",
+    "lint:fix": "eslint src --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0"
+  }
+}
+```
+
+### TypeScript Configuration
+
+**Strict tsconfig.json:**
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictPropertyInitialization": true,
+    
+    /* Path aliases */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@services/*": ["./src/services/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@types/*": ["./src/types/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+### Deployment Workflow
+
+**Build and Deploy Process:**
+```bash
+# 1. Navigate to frontend directory
+cd frontend
+
+# 2. Install dependencies (if needed)
+npm install
+
+# 3. Build production assets
+npm run build:prod
+# Output: ../backend/static/
+
+# 4. Navigate back to project root
+cd ..
+
+# 5. Deploy with Databricks Asset Bundle
+databricks bundle deploy -t dev
+
+# 6. Start the app
+databricks apps start my-app-dev
+```
+
+**Key Deployment Rules:**
+- ✅ Always run `npm run build:prod` before deployment
+- ✅ Built assets go to `backend/static/` directory
+- ✅ Frontend source code is NOT deployed (excluded via `.bundleignore`)
+- ✅ Only static build artifacts are included in the bundle
+- ❌ Never attempt to run live development server on Databricks Apps
+- ❌ Never deploy unbundled source files
+
+### Testing
+
+**Component Testing:**
+```typescript
+// __tests__/Button.test.tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import { Button } from '../components/Button';
+
+describe('Button Component', () => {
+  it('renders with children', () => {
+    render(<Button>Click me</Button>);
+    expect(screen.getByText('Click me')).toBeInTheDocument();
+  });
+
+  it('calls onClick when clicked', () => {
+    const handleClick = jest.fn();
+    render(<Button onClick={handleClick}>Click me</Button>);
+    
+    fireEvent.click(screen.getByText('Click me'));
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('is disabled when disabled prop is true', () => {
+    render(<Button disabled>Click me</Button>);
+    expect(screen.getByText('Click me')).toBeDisabled();
+  });
+
+  it('applies correct variant class', () => {
+    const { container } = render(<Button variant="secondary">Click me</Button>);
+    expect(container.firstChild).toHaveClass('secondary');
+  });
+});
+```
+
+## Related Granular Agents
+
+- **databricks-apps-specialist**: Use for Databricks Apps deployment, build configuration, and app lifecycle management
+
+## Common Anti-Patterns
+
+- ❌ Using `any` type → ✅ Define explicit TypeScript interfaces
+- ❌ Class components → ✅ Use functional components with hooks
+- ❌ Prop drilling beyond 2 levels → ✅ Use context or state management
+- ❌ Direct fetch in components → ✅ Abstract API calls into services
+- ❌ Deploying frontend source → ✅ Build and deploy only static assets
+- ❌ No error boundaries → ✅ Implement error boundaries for graceful failures
+- ❌ Mixing concerns in components → ✅ Separate business logic into hooks/services
+
+## References
+
+- [React TypeScript Documentation](https://react-typescript-cheatsheet.netlify.app/)
+- [Vite Documentation](https://vitejs.dev/)
+- [Zustand State Management](https://docs.pmnd.rs/zustand/)
+- [React Router](https://reactrouter.com/)
+- [Databricks Apps Documentation](https://docs.databricks.com/dev-tools/databricks-apps/)
+
+---
+**Version**: 1.0.0  
+**Validated with Glean MCP**: 2025-10-31 ✅  
+**Last Updated**: 2025-10-31  
+**Glean Validation**: Confirmed React TypeScript with strict mode, Zustand state management, Vite build config, and static asset deployment patterns

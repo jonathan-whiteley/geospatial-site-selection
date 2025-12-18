@@ -1,0 +1,425 @@
+---
+description: Databricks Data Engineering - Delta Lake, Pipelines, Medallion Architecture, and Streaming
+globs: *.py,*.sql,*.dlt
+alwaysApply: false
+priority: high
+relatedAgents: delta-lake-specialist, delta-live-tables-specialist, streaming-specialist, medallion-architecture-specialist, data-optimization-specialist
+---
+
+# Databricks Data Engineering
+
+## Overview
+This rule covers data engineering patterns on Databricks, including Delta Lake operations, Delta Live Tables pipelines, medallion architecture implementation, structured streaming, and data optimization techniques for production-grade data platforms.
+
+## Core Principles
+
+1. **Delta Lake Foundation**: All data stored in Delta format with ACID guarantees
+2. **Medallion Architecture**: Bronze → Silver → Gold progression for data quality
+3. **Delta Live Tables**: Declarative pipelines with built-in quality checks
+4. **Streaming-First**: Use Structured Streaming and Auto Loader for real-time ingestion
+5. **Optimization by Design**: Apply Z-Ordering, Liquid Clustering, and Predictive Optimization
+
+## Patterns & Best Practices
+
+### Medallion Architecture Implementation
+
+**Layer Definitions:**
+```
+Bronze (Raw Zone)
+├── Purpose: Exact copy of source data, minimal transformation
+├── Format: Delta Lake with schema-on-read
+├── Retention: Long-term (years)
+└── Example: dev_catalog.bronze.raw_events
+
+Silver (Cleaned Zone)
+├── Purpose: Validated, deduplicated, conformed
+├── Format: Delta Lake with enforced schema
+├── Retention: Medium-term (months to years)
+└── Example: dev_catalog.silver.cleaned_events
+
+Gold (Business Zone)
+├── Purpose: Business-level aggregates and feature tables
+├── Format: Delta Lake optimized for queries
+├── Retention: Long-term with optimization
+└── Example: dev_catalog.gold.customer_360
+```
+
+**Bronze Layer Pattern:**
+```python
+from pyspark.sql.functions import current_timestamp, input_file_name
+
+# Auto Loader for incremental ingestion
+bronze_df = (spark.readStream
+    .format("cloudFiles")
+    .option("cloudFiles.format", "json")
+    .option("cloudFiles.schemaLocation", "/Volumes/catalog/schema/checkpoints/bronze/")
+    .option("cloudFiles.inferColumnTypes", "true")
+    .load("/Volumes/catalog/bronze/landing/")
+    .withColumn("_ingestion_timestamp", current_timestamp())
+    .withColumn("_source_file", input_file_name())
+)
+
+# Write to Bronze Delta table
+(bronze_df.writeStream
+    .format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/Volumes/catalog/schema/checkpoints/bronze/")
+    .option("mergeSchema", "true")  # Allow schema evolution
+    .toTable("dev_catalog.bronze.raw_events")
+)
+```
+
+**Silver Layer Pattern:**
+```python
+from pyspark.sql.functions import col, to_timestamp
+from delta.tables import DeltaTable
+
+# Read from Bronze with deduplication
+silver_df = (spark.readStream
+    .table("dev_catalog.bronze.raw_events")
+    .filter(col("event_id").isNotNull())  # Data quality filter
+    .withColumn("event_timestamp", to_timestamp(col("event_time")))
+    .dropDuplicates(["event_id"])  # Deduplication
+    .select(
+        "event_id",
+        "user_id",
+        "event_type",
+        "event_timestamp",
+        "event_properties"
+    )
+)
+
+# Upsert to Silver with merge
+def upsert_to_silver(microBatchDF, batchId):
+    delta_table = DeltaTable.forName(spark, "dev_catalog.silver.cleaned_events")
+    
+    delta_table.alias("target").merge(
+        microBatchDF.alias("source"),
+        "target.event_id = source.event_id"
+    ).whenMatchedUpdateAll() \
+     .whenNotMatchedInsertAll() \
+     .execute()
+
+# Write with foreachBatch for complex logic
+(silver_df.writeStream
+    .foreachBatch(upsert_to_silver)
+    .option("checkpointLocation", "/Volumes/catalog/schema/checkpoints/silver/")
+    .trigger(availableNow=True)  # Trigger once mode for batch-like streaming
+    .start()
+)
+```
+
+**Gold Layer Pattern:**
+```python
+from pyspark.sql.functions import window, count, sum as _sum, avg
+
+# Aggregated metrics for business use
+gold_df = (spark.read
+    .table("dev_catalog.silver.cleaned_events")
+    .groupBy(
+        window("event_timestamp", "1 hour"),
+        "user_id",
+        "event_type"
+    )
+    .agg(
+        count("*").alias("event_count"),
+        _sum("event_value").alias("total_value"),
+        avg("processing_time_ms").alias("avg_processing_time")
+    )
+)
+
+# Write with optimization
+(gold_df.write
+    .format("delta")
+    .mode("overwrite")
+    .option("overwriteSchema", "true")
+    .option("delta.autoOptimize.optimizeWrite", "true")
+    .option("delta.autoOptimize.autoCompact", "true")
+    .partitionBy("window")
+    .saveAsTable("dev_catalog.gold.hourly_user_metrics")
+)
+
+# Apply Liquid Clustering for better query performance
+spark.sql("""
+    ALTER TABLE dev_catalog.gold.hourly_user_metrics
+    CLUSTER BY (user_id, event_type)
+""")
+```
+
+### Delta Live Tables Pipelines
+
+**DLT Pipeline Definition:**
+```python
+import dlt
+from pyspark.sql.functions import *
+
+# Bronze: Streaming ingestion with Auto Loader
+@dlt.table(
+    name="bronze_customer_events",
+    comment="Raw customer events from cloud storage",
+    table_properties={
+        "quality": "bronze",
+        "pipelines.autoOptimize.zOrderCols": "event_id"
+    }
+)
+def bronze_customer_events():
+    return (
+        spark.readStream.format("cloudFiles")
+        .option("cloudFiles.format", "json")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .load("/Volumes/catalog/bronze/customer_events/")
+        .select(
+            "*",
+            current_timestamp().alias("_ingestion_time"),
+            input_file_name().alias("_source_file")
+        )
+    )
+
+# Silver: Cleaned with data quality expectations
+@dlt.table(
+    name="silver_customer_events",
+    comment="Validated and cleaned customer events",
+    table_properties={"quality": "silver"}
+)
+@dlt.expect_or_drop("valid_event_id", "event_id IS NOT NULL")
+@dlt.expect_or_drop("valid_timestamp", "event_timestamp IS NOT NULL AND event_timestamp > '2020-01-01'")
+@dlt.expect("valid_user_id", "user_id IS NOT NULL")  # Track but don't drop
+def silver_customer_events():
+    return (
+        dlt.read_stream("bronze_customer_events")
+        .withColumn("event_timestamp", to_timestamp("event_time"))
+        .withColumn("processed_time", current_timestamp())
+        .select(
+            "event_id",
+            "user_id",
+            "event_type",
+            "event_timestamp",
+            "event_properties",
+            "processed_time"
+        )
+    )
+
+# Gold: Business aggregates
+@dlt.table(
+    name="gold_daily_user_summary",
+    comment="Daily aggregated user activity metrics",
+    table_properties={"quality": "gold"}
+)
+def gold_daily_user_summary():
+    return (
+        dlt.read("silver_customer_events")
+        .groupBy(
+            "user_id",
+            to_date("event_timestamp").alias("event_date")
+        )
+        .agg(
+            count("*").alias("total_events"),
+            countDistinct("event_type").alias("unique_event_types"),
+            min("event_timestamp").alias("first_event_time"),
+            max("event_timestamp").alias("last_event_time")
+        )
+    )
+
+# Materialized view for real-time queries
+@dlt.view(
+    name="live_user_activity",
+    comment="Real-time view of recent user activity"
+)
+def live_user_activity():
+    return (
+        dlt.read_stream("silver_customer_events")
+        .filter(col("event_timestamp") > current_timestamp() - expr("INTERVAL 1 HOUR"))
+    )
+```
+
+**DLT Data Quality Expectations:**
+```python
+# Drop invalid records
+@dlt.expect_or_drop("valid_email", "email RLIKE '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'")
+
+# Fail pipeline if critical quality check fails
+@dlt.expect_or_fail("no_pii_in_logs", "log_message NOT RLIKE '\\b\\d{3}-\\d{2}-\\d{4}\\b'")
+
+# Track quality metrics without blocking
+@dlt.expect("reasonable_value", "value >= 0 AND value <= 1000000")
+
+# Multiple expectations
+@dlt.expect_all({
+    "valid_id": "id IS NOT NULL",
+    "valid_date": "date >= '2020-01-01'",
+    "valid_amount": "amount > 0"
+})
+```
+
+### Structured Streaming Patterns
+
+**Streaming Aggregations:**
+```python
+from pyspark.sql.functions import window, col
+
+# Tumbling window aggregation
+streaming_agg = (spark.readStream
+    .table("catalog.silver.events")
+    .withWatermark("event_timestamp", "10 minutes")
+    .groupBy(
+        window("event_timestamp", "5 minutes"),
+        "event_type"
+    )
+    .agg(
+        count("*").alias("event_count"),
+        sum("event_value").alias("total_value")
+    )
+)
+
+# Write with checkpoint for fault tolerance
+(streaming_agg.writeStream
+    .format("delta")
+    .outputMode("append")
+    .option("checkpointLocation", "/Volumes/catalog/checkpoints/streaming_agg/")
+    .trigger(processingTime="1 minute")
+    .toTable("catalog.gold.event_metrics")
+)
+```
+
+**Stream-Stream Joins:**
+```python
+# Join two streaming sources
+events_stream = spark.readStream.table("catalog.silver.events")
+users_stream = spark.readStream.table("catalog.silver.users")
+
+# Both streams need watermarks for join
+events_with_watermark = events_stream.withWatermark("event_timestamp", "1 hour")
+users_with_watermark = users_stream.withWatermark("updated_timestamp", "1 hour")
+
+# Join within time bounds
+enriched_events = events_with_watermark.join(
+    users_with_watermark,
+    expr("""
+        events.user_id = users.user_id AND
+        events.event_timestamp >= users.updated_timestamp AND
+        events.event_timestamp <= users.updated_timestamp + interval 1 hour
+    """),
+    "leftOuter"
+)
+```
+
+### Data Optimization Techniques
+
+**Z-Ordering for Queries:**
+```sql
+-- Optimize table with Z-Ordering on frequently filtered columns
+OPTIMIZE catalog.silver.customer_events
+ZORDER BY (user_id, event_type, event_date);
+
+-- Optimize specific partition
+OPTIMIZE catalog.silver.customer_events
+WHERE event_date >= '2024-10-01'
+ZORDER BY (user_id);
+```
+
+**Liquid Clustering (Recommended):**
+```sql
+-- Create table with Liquid Clustering
+CREATE TABLE catalog.silver.orders (
+    order_id STRING,
+    customer_id STRING,
+    order_date DATE,
+    amount DECIMAL(10,2)
+)
+USING DELTA
+CLUSTER BY (customer_id, order_date);
+
+-- Convert existing table to Liquid Clustering
+ALTER TABLE catalog.silver.orders
+CLUSTER BY (customer_id, order_date);
+
+-- Clustering is automatically maintained on writes
+```
+
+**Predictive Optimization:**
+```sql
+-- Enable predictive optimization (auto-optimization)
+ALTER TABLE catalog.silver.customer_events
+SET TBLPROPERTIES (
+    'delta.autoOptimize.optimizeWrite' = 'true',
+    'delta.autoOptimize.autoCompact' = 'true'
+);
+
+-- Let Databricks manage optimization automatically
+```
+
+**Partition Pruning:**
+```python
+# Efficient partition filtering
+df = spark.read.table("catalog.silver.events") \
+    .filter(col("event_date").between("2024-10-01", "2024-10-31")) \
+    .filter(col("region") == "US")
+
+# Avoid full table scans
+```
+
+### Change Data Capture (CDC)
+
+**Enable Change Data Feed:**
+```sql
+-- Enable CDF on table
+ALTER TABLE catalog.silver.customers
+SET TBLPROPERTIES (delta.enableChangeDataFeed = true);
+
+-- Query changes
+SELECT * FROM table_changes('catalog.silver.customers', 100)
+WHERE _change_type IN ('insert', 'update_postimage');
+
+-- Query changes since timestamp
+SELECT * FROM table_changes('catalog.silver.customers', '2024-10-30 00:00:00')
+```
+
+**Process CDC with Streaming:**
+```python
+# Read change feed as stream
+cdc_stream = (spark.readStream
+    .format("delta")
+    .option("readChangeFeed", "true")
+    .option("startingVersion", 100)
+    .table("catalog.silver.customers")
+)
+
+# Process only specific change types
+processed_changes = cdc_stream.filter(
+    col("_change_type").isin(["insert", "update_postimage"])
+)
+```
+
+## Related Granular Agents
+
+- **delta-lake-specialist**: Use for Delta Lake operations, ACID transactions, time travel, and schema evolution
+- **delta-live-tables-specialist**: Use for DLT pipeline development, data quality expectations, and orchestration
+- **streaming-specialist**: Use for Structured Streaming and Auto Loader real-time data ingestion
+- **medallion-architecture-specialist**: Use for implementing Bronze-Silver-Gold architecture patterns
+- **data-optimization-specialist**: Use for Z-Ordering, Liquid Clustering, and performance tuning
+- **unity-catalog-specialist**: Use for catalog/schema setup, permissions, and governance
+
+## Common Anti-Patterns
+
+- ❌ Writing Parquet directly → ✅ Always use Delta Lake format
+- ❌ No medallion layers → ✅ Implement Bronze-Silver-Gold architecture
+- ❌ Ignoring data quality → ✅ Use DLT expectations or validation checks
+- ❌ No checkpoints in streaming → ✅ Always specify checkpoint location
+- ❌ Over-partitioning → ✅ Use Liquid Clustering for most use cases
+- ❌ No optimization → ✅ Enable Predictive Optimization or manual OPTIMIZE
+- ❌ Full table scans → ✅ Use partition pruning and Z-Ordering/Liquid Clustering
+
+## References
+
+- [Delta Lake Guide](https://docs.databricks.com/delta/)
+- [Delta Live Tables](https://docs.databricks.com/workflows/delta-live-tables/)
+- [Structured Streaming](https://docs.databricks.com/structured-streaming/)
+- [Auto Loader](https://docs.databricks.com/ingestion/auto-loader/)
+- [Liquid Clustering](https://docs.databricks.com/optimizations/liquid-clustering.html)
+- [Medallion Architecture](https://www.databricks.com/glossary/medallion-architecture)
+
+---
+**Version**: 1.0.0  
+**Validated with Glean MCP**: 2025-10-31 ✅  
+**Last Updated**: 2025-10-31  
+**Glean Validation**: Confirmed alignment with Delta Lake, DLT, medallion architecture, and optimization best practices
