@@ -32,14 +32,14 @@ resources:
               - "osmium"
 
       tasks:
-        - task_key: "ingest_census_demographics"
+        - task_key: "census_demographics"
           notebook_task:
             notebook_path: ../transformations/01_bronze/census_demographics.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
+              bronze_schema: "${var.bronze_schema}"
               census_api_key: "${var.census_api_key}"
-              census_data_volume: "/Volumes/${var.catalog}/${var.schema}/census_data/"
+              census_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/census_data/"
               config_path: "${workspace.file_path}/resources/configs/census_variables.yml"
               acs_year: "${var.acs_year}"
               state_fips: "${var.state_fips}"
@@ -49,13 +49,13 @@ resources:
           timeout_seconds: 3600
           max_retries: 2
 
-        - task_key: "ingest_census_boundaries"
+        - task_key: "census_boundaries"
           notebook_task:
             notebook_path: ../transformations/01_bronze/census_boundaries.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
-              boundary_data_volume: "/Volumes/${var.catalog}/${var.schema}/boundary_data/"
+              bronze_schema: "${var.bronze_schema}"
+              boundary_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/boundary_data/"
               state_fips: "${var.state_fips}"
               year: "${var.acs_year}"
 
@@ -64,13 +64,13 @@ resources:
           timeout_seconds: 3600
           max_retries: 2
 
-        - task_key: "download_osm_data"
+        - task_key: "osm_download"
           notebook_task:
             notebook_path: ../transformations/01_bronze/osm_download.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
-              osm_data_volume: "/Volumes/${var.catalog}/${var.schema}/osm_data/"
+              bronze_schema: "${var.bronze_schema}"
+              osm_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/osm_data/"
               osm_url: "${var.osm_url}"
               region: "${var.osm_region}"
 
@@ -81,12 +81,12 @@ resources:
 
         - task_key: "extract_pois"
           depends_on:
-            - task_key: "download_osm_data"
+            - task_key: "osm_download"
           notebook_task:
             notebook_path: ../transformations/01_bronze/extract_pois.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
+              bronze_schema: "${var.bronze_schema}"
               osm_region: "${var.osm_region}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
 

@@ -1,7 +1,19 @@
 resources:
   jobs:
     silver_poi_processing:
-      name: "Silver - POI Cleaning"
+      name: "Silver - POI Cleaning, H3 Features & Isochrones"
+
+      # PREREQUISITES - Required tables in bronze schema:
+      # These tables must exist before running this job:
+      # - competitor_locations (manually uploaded or created separately)
+      # - rmc_retail_locations_grocery (manually uploaded or created separately)
+      #
+      # Tables created by bronze_census_ingestion job:
+      # - census_demographics
+      # - census_blockgroups
+      # - census_states
+      # - osm_pois_raw
+      # - osm_downloads
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -37,8 +49,8 @@ resources:
             notebook_path: ../transformations/02_silver/clean_pois.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
-              silver_schema: "${var.schema}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
               state_filter: "${var.state_filter}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
 
@@ -47,30 +59,36 @@ resources:
           timeout_seconds: 3600
           max_retries: 2
 
-        # OSRM Isochrone Generation (Public API - No Installation Required)
-        - task_key: "create_rmc_isochrones_urbanicity"
+        - task_key: "create_h3_features"
+          depends_on:
+            - task_key: "clean_pois"
           notebook_task:
-            notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
+            notebook_path: ../transformations/02_silver/create_h3_features.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              schema: "${var.schema}"
-              input_table: "bronze_rmc_retail_locations_grocery"
-              output_table: "silver_rmc_isochrones"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+              state_fips: "${var.state_fips}"
+              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
 
           environment_key: "Serverless"
 
           timeout_seconds: 7200
           max_retries: 2
 
-        # Seed Points Expansion Isochrones
-        - task_key: "create_seed_points_isochrones"
+        - task_key: "create_osrm_isochrones"
+          depends_on:
+            - task_key: "create_h3_features"
           notebook_task:
             notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              schema: "${var.schema}"
-              input_table: "bronze_seed_points_expansion"
-              output_table: "seed_points_isochrones"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+              input_table: "rmc_retail_locations_grocery"
+              output_table: "rmc_urbanicity_based_isochrones"
 
           environment_key: "Serverless"
 

@@ -3,17 +3,50 @@ resources:
     site_selection_pipeline:
       name: "Site Selection - Full Pipeline"
 
+      # PREREQUISITES - Manual Data Upload Required:
+      # Before running this pipeline, ensure these tables exist in the bronze schema:
+      # - competitor_locations
+      # - rmc_retail_locations_grocery
+      #
+      # These are typically manually uploaded CSV/Delta tables containing:
+      # - competitor_locations: competitor store locations with lat/lon and store_type
+      # - rmc_retail_locations_grocery: RMC retail store locations with lat/lon
+      #
+      # Pipeline execution order:
+      # 1. Bronze ingestion (census + OSM data)
+      # 2. Silver processing (POI cleaning, H3 features, isochrones)
+      # 3. Gold aggregations (trade area features, predictions)
+
+      # Queue configuration for serverless cost optimization
+      queue:
+        enabled: true
+
+      # Email notifications
+      email_notifications:
+        on_failure:
+          - "${var.user_email}"
+
+      # Serverless environment
+      environments:
+        - environment_key: "Serverless"
+          spec:
+            dependencies:
+              - "pyyaml"
+
       tasks:
+        # Step 1: Bronze ingestion
         - task_key: "run_bronze_ingestion"
           run_job_task:
             job_id: ${resources.jobs.bronze_census_ingestion.id}
 
+        # Step 2: Silver processing (POI cleaning, H3 features, isochrones)
         - task_key: "run_silver_processing"
           depends_on:
             - task_key: "run_bronze_ingestion"
           run_job_task:
             job_id: ${resources.jobs.silver_poi_processing.id}
 
+        # Step 3: Gold aggregations
         - task_key: "run_gold_feature_engineering"
           depends_on:
             - task_key: "run_silver_processing"

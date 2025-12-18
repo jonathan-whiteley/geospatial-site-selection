@@ -19,13 +19,17 @@
 # COMMAND ----------
 
 dbutils.widgets.text("catalog", "jdub_demo_aws")
-dbutils.widgets.text("schema", "geospatial_site_selection")
+dbutils.widgets.text("bronze_schema", "geo_bronze")
+dbutils.widgets.text("silver_schema", "geo_silver")
+dbutils.widgets.text("gold_schema", "geo_gold")
 dbutils.widgets.text("mapbox_token", "", "Mapbox Access Token")
-dbutils.widgets.text("input_table", "bronze_rmc_retail_locations_grocery", "Input Locations Table")
-dbutils.widgets.text("output_table", "silver_rmc_isochrones", "Output Table")
+dbutils.widgets.text("input_table", "rmc_retail_locations_grocery", "Input Locations Table")
+dbutils.widgets.text("output_table", "rmc_urbanicity_based_isochrones", "Output Table")
 
 catalog = dbutils.widgets.get("catalog")
-schema = dbutils.widgets.get("schema")
+bronze_schema = dbutils.widgets.get("bronze_schema")
+silver_schema = dbutils.widgets.get("silver_schema")
+gold_schema = dbutils.widgets.get("gold_schema")
 mapbox_token = dbutils.widgets.get("mapbox_token")
 input_table = dbutils.widgets.get("input_table")
 output_table = dbutils.widgets.get("output_table")
@@ -42,8 +46,8 @@ if not mapbox_token:
 
 from pyspark.sql.functions import col, expr, broadcast, lit
 
-# Read locations
-locations = spark.table(f"{catalog}.{schema}.{input_table}")
+# Read locations from bronze schema
+locations = spark.table(f"{catalog}.{bronze_schema}.{input_table}")
 
 # Auto-detect columns
 columns = locations.columns
@@ -61,8 +65,8 @@ locations_std = locations.select(
     col(lon_col).alias("longitude")
 ).filter(col("latitude").isNotNull() & col("longitude").isNotNull())
 
-# Load H3 features for urbanicity
-h3_features = spark.table(f"{catalog}.{schema}.silver_h3_features").select(
+# Load H3 features for urbanicity from gold schema
+h3_features = spark.table(f"{catalog}.{gold_schema}.h3_features_gold").select(
     col("h3_cell_id"),
     col("urbanicity_category")
 )
@@ -219,8 +223,8 @@ isochrones_final = (
     .drop("geometry_wkt")
 )
 
-# Save to Delta
-output_table_name = f"{catalog}.{schema}.{output_table}"
+# Save to silver schema
+output_table_name = f"{catalog}.{silver_schema}.{output_table}"
 
 (
     isochrones_final

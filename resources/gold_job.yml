@@ -1,7 +1,15 @@
 resources:
   jobs:
     gold_feature_engineering:
-      name: "Gold - H3 Feature Engineering"
+      name: "Gold - Trade Area Aggregations"
+
+      # PREREQUISITES - Required tables from silver schema:
+      # These tables must be created by silver_poi_processing job first:
+      # - h3_features_gold (created by silver job)
+      # - rmc_urbanicity_based_isochrones (created by silver job)
+      # - osm_pois (created by silver job)
+      #
+      # Run order: bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -29,64 +37,48 @@ resources:
               - "pyyaml"
 
       tasks:
-        - task_key: "create_h3_features"
-          notebook_task:
-            notebook_path: ../transformations/02_silver/create_h3_features.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              bronze_schema: "${var.schema}"
-              silver_schema: "${var.schema}"
-              gold_schema: "${var.schema}"
-              state_fips: "${var.state_fips}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
 
-          environment_key: "Serverless"
-
-          timeout_seconds: 7200
-          max_retries: 2
-
-        - task_key: "aggregate_rmc_trade_area_features"
-          depends_on:
-            - task_key: "create_h3_features"
+        - task_key: "aggregate_trade_area_features"
           notebook_task:
             notebook_path: ../transformations/03_gold/aggregate_trade_area_features.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              silver_schema: "${var.schema}"
-              gold_schema: "${var.schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
               config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
+              trade_area_table: "${var.catalog}.${var.silver_schema}.rmc_urbanicity_based_isochrones"
+              output_table_override: "rmc_urbanicity_based_isochrones_enriched"
 
           environment_key: "Serverless"
 
           timeout_seconds: 3600
           max_retries: 2
 
-        - task_key: "aggregate_seed_points_trade_area_features"
-          depends_on:
-            - task_key: "create_h3_features"
-          notebook_task:
-            notebook_path: ../transformations/03_gold/aggregate_trade_area_features.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              silver_schema: "${var.schema}"
-              gold_schema: "${var.schema}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
-              trade_area_table: "${var.catalog}.${var.schema}.silver_seed_points_isochrones"
-              output_table_override: "seed_points_trade_area_features"
-
-          environment_key: "Serverless"
-
-          timeout_seconds: 3600
-          max_retries: 2
+        # NOTE: Requires seed_points_expansion table in bronze and corresponding isochrones in silver
+        # - task_key: "aggregate_seed_points_trade_area_features"
+        #   depends_on:
+        #     - task_key: "create_h3_features"
+        #   notebook_task:
+        #     notebook_path: ../transformations/03_gold/aggregate_trade_area_features.ipynb
+        #     base_parameters:
+        #       catalog: "${var.catalog}"
+        #       silver_schema: "${var.silver_schema}"
+        #       gold_schema: "${var.gold_schema}"
+        #       config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
+        #       trade_area_table: "${var.catalog}.${var.silver_schema}.seed_points_expansion_isochrones"
+        #       output_table_override: "seed_points_expansion_isochrones_enriched"
+        #
+        #   environment_key: "Serverless"
+        #
+        #   timeout_seconds: 3600
+        #   max_retries: 2
 
         - task_key: "predict_seed_point_sales"
-          depends_on:
-            - task_key: "create_h3_features"
           notebook_task:
             notebook_path: ../transformations/03_gold/predict_seed_point_sales.ipynb
             base_parameters:
               catalog: "${var.catalog}"
-              gold_schema: "${var.schema}"
+              gold_schema: "${var.gold_schema}"
 
           environment_key: "Serverless"
 
