@@ -1,0 +1,115 @@
+# Store Location and Sales Configuration
+# Configuration for Little Caesars store locations and sales data
+# Version: 1.0
+# Last Updated: 2025-12-18
+
+# Store Location Configuration
+store_locations:
+  # Primary store location table
+  table: "jdub_demo_aws.geo_bronze.lce_locations_mass"
+  
+  # Required columns for store location table
+  required_columns:
+    - store_number    # string or int - Unique store identifier
+    - latitude        # double - Store latitude (decimal degrees)
+    - longitude       # double - Store longitude (decimal degrees)
+    - city            # string - City name
+    - state           # string - State abbreviation (e.g., MA)
+  
+  # Optional columns (will use if available)
+  optional_columns:
+    - address         # string - Street address
+    - zip_code        # string - ZIP/postal code
+    - store_name      # string - Store name/identifier
+    - opened_date     # date - Store opening date
+
+# Sales Data Configuration
+sales_data:
+  # Historical sales table (placeholder structure for future use)
+  # When real sales data becomes available, populate this table and set synthetic_formula.enabled = false
+  historical_table: "jdub_demo_aws.geo_bronze.lce_sales_historical"
+  
+  # Required columns for historical sales table
+  historical_columns:
+    - store_number    # string or int - Must match store_locations.store_number
+    - annual_sales    # double - Annual sales in USD
+    - sales_date      # date (optional) - Date for historical tracking/time series
+    - fiscal_year     # int (optional) - Fiscal year for the sales record
+  
+  # Synthetic sales formula configuration
+  # Used when real sales data is not available
+  synthetic_formula:
+    enabled: true
+    description: "Generate synthetic sales estimates based on trade area demographic and spatial features"
+    
+    # Base sales amount (USD)
+    base_sales: 300000
+    
+    # Feature weights and coefficients
+    # Multiply feature values by these coefficients and sum
+    features:
+      # Population density from CARTO
+      population_density:
+        enabled: true
+        coefficient: 50
+        source: "CARTO h3 features (population / area)"
+      
+      # Total population in trade area
+      total_population:
+        enabled: true
+        coefficient: 2
+        source: "CARTO h3 features aggregated per isochrone"
+      
+      # POI count in trade area
+      poi_count:
+        enabled: true
+        coefficient: 100
+        source: "osm_pois aggregated per isochrone"
+      
+      # Young adults (18-34 age range)
+      young_adults_count:
+        enabled: true
+        coefficient: 30
+        source: "CARTO age demographics (sum of 18-24, 25-29, 30-34)"
+        carto_columns:
+          - female_18_to_24
+          - male_18_to_24
+          - female_25_to_29
+          - male_25_to_29
+          - female_30_to_34
+          - male_30_to_34
+      
+      # High income households ($75k+)
+      high_income_households:
+        enabled: true
+        coefficient: 5
+        source: "CARTO income features (sum of income >= $75k)"
+        carto_columns:
+          - income_75000_to_99999
+          - income_100000_to_124999
+          - income_125000_to_149999
+          - income_150000_to_199999
+          - income_200000_or_more
+      
+      # Urbanicity score (0-1 scale)
+      urbanicity_score:
+        enabled: true
+        coefficient: 100000
+        source: "Derived from CARTO population density"
+    
+    # Random noise configuration (optional)
+    add_noise:
+      enabled: false
+      std_dev: 50000  # Standard deviation for Gaussian noise
+
+# Output Configuration
+output:
+  # Table for stores with calculated sales
+  stores_with_sales_table: "geo_gold.lce_stores_with_sales"
+  
+  # Include these additional fields in output
+  include_fields:
+    - created_timestamp: true
+    - data_source: true  # 'historical' or 'synthetic'
+    - confidence_score: false  # Future use for model confidence
+

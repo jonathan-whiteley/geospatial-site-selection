@@ -1,16 +1,11 @@
 resources:
   jobs:
     site_selection_pipeline:
-      name: "Site Selection - Full Pipeline"
+      name: "LCE Site Selection - Full Pipeline"
 
       # PREREQUISITES - Manual Data Upload Required:
       # Before running this pipeline, ensure these tables exist in the bronze schema:
-      # - competitor_locations
-      # - rmc_retail_locations_grocery
-      #
-      # These are typically manually uploaded CSV/Delta tables containing:
-      # - competitor_locations: competitor store locations with lat/lon and store_type
-      # - rmc_retail_locations_grocery: RMC retail store locations with lat/lon
+      # - lce_locations_mass (Little Caesars store locations with lat/lon)
       #
       # Pipeline execution order:
       # 1. Bronze ingestion (census + OSM data)

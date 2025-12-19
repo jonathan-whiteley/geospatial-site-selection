@@ -1,19 +1,19 @@
 resources:
   jobs:
     silver_poi_processing:
-      name: "Silver - POI Cleaning, H3 Features & Isochrones"
+      name: "Silver - Isochrones"
 
       # PREREQUISITES - Required tables in bronze schema:
       # These tables must exist before running this job:
-      # - competitor_locations (manually uploaded or created separately)
-      # - rmc_retail_locations_grocery (manually uploaded or created separately)
+      # - lce_locations_mass (Little Caesars stores - manually uploaded)
       #
       # Tables created by bronze_census_ingestion job:
-      # - census_demographics
-      # - census_blockgroups
-      # - census_states
-      # - osm_pois_raw
-      # - osm_downloads
+      # - census_states (state boundaries)
+      # - osm_pois_raw (optional - for custom POI analysis)
+      #
+      # External data sources:
+      # - CARTO marketplace: carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3
+      #   (Provides demographics + POI counts at H3-8 resolution)
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -42,6 +42,7 @@ resources:
               - "h3"
               - "shapely"
               - "requests"
+              - "folium"
 
       tasks:
         - task_key: "clean_pois"
@@ -57,11 +58,9 @@ resources:
           environment_key: "Serverless"
 
           timeout_seconds: 3600
-          max_retries: 2
 
         - task_key: "create_h3_features"
-          depends_on:
-            - task_key: "clean_pois"
+          # NO LONGER depends on clean_pois - uses CARTO POI data instead
           notebook_task:
             notebook_path: ../transformations/02_silver/create_h3_features.ipynb
             base_parameters:
@@ -75,9 +74,8 @@ resources:
           environment_key: "Serverless"
 
           timeout_seconds: 7200
-          max_retries: 2
 
-        - task_key: "create_osrm_isochrones"
+        - task_key: "create_lce_isochrones_osrm"
           depends_on:
             - task_key: "create_h3_features"
           notebook_task:
@@ -87,12 +85,11 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
-              input_table: "rmc_retail_locations_grocery"
-              output_table: "rmc_urbanicity_based_isochrones"
+              input_table: "lce_locations_mass"
+              output_table: "lce_isochrones_5min"
 
           environment_key: "Serverless"
 
           timeout_seconds: 7200
-          max_retries: 2
 
       max_concurrent_runs: 1

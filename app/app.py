@@ -12,11 +12,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 st.set_page_config(
-    page_title="RMC Retail Site Selection",
+    page_title="Little Caesars Site Selection",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={
-        'About': "RMC Retail Site Selection Platform - Powered by Geospatial Intelligence"
+        'About': "Little Caesars Site Selection Platform - Powered by Geospatial Intelligence"
     }
 )
 
@@ -48,7 +48,7 @@ st.markdown("""
         margin-bottom: 0.5rem;
     }
 
-    .rmc-logo {
+    .lce-logo {
         background: white;
         color: #1e40af;
         font-weight: 800;
@@ -289,10 +289,10 @@ def distance_miles(lat1, lon1, lat2, lon2):
 st.markdown("""
 <div class="main-header">
     <div class="logo-title">
-        <div class="rmc-logo">RMC</div>
+        <div class="lce-logo">LCE</div>
         <div>
-            <h1>Retail Site Selection Platform</h1>
-            <div class="tagline">Geospatial Intelligence for Strategic Expansion</div>
+            <h1>Little Caesars Site Selection Platform</h1>
+            <div class="tagline">Geospatial Intelligence for Strategic Expansion in Massachusetts</div>
         </div>
     </div>
 </div>
@@ -314,18 +314,20 @@ with tab1:
         stores = query(user_token, """
             SELECT s.store_number, s.city, s.state, s.annual_sales,
                    e.latitude, e.longitude,
-                   e.total_population, e.total_poi_count,
-                   e.male_18_to_24, e.female_18_to_24, e.male_45_to_54, e.female_45_to_54,
-                   e.income_100k_125k, e.income_125k_150k, e.income_150k_200k, e.income_200k_plus,
-                   e.bachelors_degree, e.masters_degree,
-                   e.distance_to_valuemart_miles, e.distance_to_quickshop_market_miles,
+                   e.population, e.total_poi_count,
+                   e.female_18_to_24, e.male_18_to_24, 
+                   e.female_25_to_29, e.male_25_to_29,
+                   e.female_30_to_34, e.male_30_to_34,
+                   e.income_75000_to_99999, e.income_100000_to_124999,
+                   e.income_125000_to_149999, e.income_150000_to_199999, e.income_200000_or_more,
+                   e.edu_bachelors, e.edu_graduate_professional,
                    e.poi_count_amenity, e.poi_count_leisure, e.poi_count_shop, e.poi_count_tourism,
                    e.poi_count_office, e.poi_count_public_transport,
                    r.address, r.zip_code
-            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_location_sales s
-            JOIN jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
+            JOIN jdub_demo_aws.geo_gold.lce_trade_area_features e
                 ON s.store_number = e.store_number
-            JOIN jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery r
+            JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
                 ON s.store_number = r.store_number
         """)
 
@@ -333,7 +335,7 @@ with tab1:
         try:
             isochrones = query(user_token, """
                 SELECT store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-                FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features
+                FROM jdub_demo_aws.geo_gold.lce_trade_area_features
             """)
         except:
             # If isochrone query fails, create empty dataframe
@@ -351,7 +353,7 @@ with tab1:
             col1.metric("Total Stores", f"{len(stores):,}")
             col2.metric("Total Annual Sales", f"${stores['annual_sales'].sum():,.0f}")
             col3.metric("Average Sales per Store", f"${stores['annual_sales'].mean():,.0f}")
-            col4.metric("Avg Population per Trade Area", f"{stores['total_population'].mean():,.0f}")
+            col4.metric("Avg Population per Trade Area", f"{stores['population'].mean():,.0f}")
         except Exception as e:
             st.error(f"Error displaying metrics: {e}")
             with st.expander("Debug Data"):
@@ -362,7 +364,7 @@ with tab1:
         # Load MA state boundary
         ma_boundary = query(user_token, """
             SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM jdub_demo_aws.geospatial_site_selection.bronze_census_states
+            FROM jdub_demo_aws.geo_bronze.census_states
             WHERE state_abbr = 'MA'
         """)
 
@@ -422,7 +424,7 @@ with tab1:
                     {store['city']}, {store['state']} {store['zip_code']}<br/>
                     <hr style="margin: 5px 0;">
                     <b>Annual Sales:</b> ${store['annual_sales']:,.0f}<br/>
-                    <b>Population:</b> {store['total_population']:,.0f}<br/>
+                    <b>Population:</b> {store['population']:,.0f}<br/>
                     <b>POI Count:</b> {store['total_poi_count']:,.0f}
                 </div>
                 """
@@ -467,10 +469,14 @@ with tab1:
 
         st.markdown("<h3 style='text-align: center; margin-bottom: 1rem;'>Sales Performance Drivers</h3>", unsafe_allow_html=True)
 
-        # Calculate derived metrics based on model formula
-        stores['young_adults'] = stores['male_18_to_24'] + stores['female_18_to_24'] + stores['male_45_to_54'] + stores['female_45_to_54']
-        stores['high_income'] = stores['income_100k_125k'] + stores['income_125k_150k'] + stores['income_150k_200k'] + stores['income_200k_plus']
-        stores['higher_education'] = stores['bachelors_degree'] + stores['masters_degree']
+        # Calculate derived metrics based on CARTO features
+        stores['young_adults'] = (stores['male_18_to_24'] + stores['female_18_to_24'] + 
+                                  stores['male_25_to_29'] + stores['female_25_to_29'] +
+                                  stores['male_30_to_34'] + stores['female_30_to_34'])
+        stores['high_income'] = (stores['income_75000_to_99999'] + stores['income_100000_to_124999'] + 
+                                 stores['income_125000_to_149999'] + stores['income_150000_to_199999'] + 
+                                 stores['income_200000_or_more'])
+        stores['higher_education'] = stores['edu_bachelors'] + stores['edu_graduate_professional']
 
         # Calculate values
         young_adults_val = f"{stores['young_adults'].mean():,.0f}"
@@ -478,38 +484,30 @@ with tab1:
         higher_ed_val = f"{stores['higher_education'].mean():,.0f}"
         poi_val = f"{stores['total_poi_count'].mean():,.0f}"
 
-        # Clean card-based metrics
-        driver_cols = st.columns(5)
+        # Clean card-based metrics (4 cards, no competitors)
+        driver_cols = st.columns(4)
 
         with driver_cols[0]:
-            st.markdown("""
-            <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Competitors</div>
-                <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Closest Proximity</div>
-                <div style="color: #f87171; font-size: 22px; font-weight: 700; margin-bottom: 4px;">ValueMart</div>
-                <div style="color: #f87171; font-size: 22px; font-weight: 700;">QuickShop</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with driver_cols[1]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Young Adults</div>
+                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Young Adults (18-34)</div>
                 <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg People per Trade Area</div>
                 <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{young_adults_val}</div>
             </div>
             """, unsafe_allow_html=True)
 
-        with driver_cols[2]:
+        with driver_cols[1]:
+        with driver_cols[1]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">High Income HH</div>
+                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">High Income HH ($75k+)</div>
                 <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg Households per Trade Area</div>
                 <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{high_income_val}</div>
             </div>
             """, unsafe_allow_html=True)
 
-        with driver_cols[3]:
+        with driver_cols[2]:
+        with driver_cols[2]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Higher Education</div>
@@ -518,7 +516,8 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-        with driver_cols[4]:
+        with driver_cols[3]:
+        with driver_cols[3]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Points of Interest</div>
@@ -539,9 +538,9 @@ with tab2:
     with st.spinner("Loading candidate data..."):
         candidates = query(user_token, """
             SELECT store_number, city, state, latitude, longitude,
-                   predicted_annual_sales, total_population, total_poi_count,
-                   commute_under_10_min
-            FROM jdub_demo_aws.geospatial_site_selection.gold_seed_points_expansion_top_25
+                   predicted_annual_sales, population, total_poi_count,
+                   commute_less_than_10_min
+            FROM jdub_demo_aws.geo_gold.lce_expansion_candidates
         """)
 
     if not candidates.empty:
@@ -565,14 +564,14 @@ with tab2:
 
             min_population = st.slider(
                 "Target Population accessible to New Location (Per Trade Area)",
-                min_value=int(candidates['total_population'].min()),
-                max_value=int(candidates['total_population'].max()),
-                value=int(candidates['total_population'].min())
+                min_value=int(candidates['population'].min()),
+                max_value=int(candidates['population'].max()),
+                value=int(candidates['population'].min())
             )
 
         # Apply filters
         filtered = candidates[candidates['predicted_annual_sales'] >= min_sales]
-        filtered = filtered[filtered['total_population'] >= min_population]
+        filtered = filtered[filtered['population'] >= min_population]
 
         st.caption(f"Showing {len(filtered)} of {len(candidates)} expansion locations")
 
@@ -585,7 +584,7 @@ with tab2:
             <div style="display: flex; gap: 24px; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div style="width: 12px; height: 12px; border-radius: 50%; background: #34d399; border: 2px solid #10b981;"></div>
-                    <span style="color: #e2e8f0; font-size: 14px;">Current RMC Locations</span>
+                    <span style="color: #e2e8f0; font-size: 14px;">Current Little Caesars Locations</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div style="width: 12px; height: 12px; border-radius: 50%; background: #60a5fa; border: 2px solid #3b82f6;"></div>
@@ -598,7 +597,7 @@ with tab2:
         # Load MA state boundary
         ma_boundary = query(user_token, """
             SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM jdub_demo_aws.geospatial_site_selection.bronze_census_states
+            FROM jdub_demo_aws.geo_bronze.census_states
             WHERE state_abbr = 'MA'
         """)
 
@@ -622,15 +621,15 @@ with tab2:
                 name='Massachusetts Boundary'
             ).add_to(m)
 
-        # Add current RMC locations (always shown)
+        # Add current Little Caesars locations (always shown)
         current_stores = query(user_token, """
             SELECT s.store_number, s.city, s.state, s.annual_sales,
                    e.latitude, e.longitude,
                    r.address, r.zip_code
-            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_location_sales s
-            JOIN jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
+            JOIN jdub_demo_aws.geo_gold.lce_trade_area_features e
                 ON s.store_number = e.store_number
-            JOIN jdub_demo_aws.geospatial_site_selection.rmc_retail_locations_grocery r
+            JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
                 ON s.store_number = r.store_number
         """)
         if not current_stores.empty:
@@ -701,7 +700,7 @@ with tab3:
     with st.spinner("Loading optimization data..."):
         existing = query(user_token, """
             SELECT e.latitude, e.longitude
-            FROM jdub_demo_aws.geospatial_site_selection.gold_rmc_retail_locations_grocery_isochrones_features e
+            FROM jdub_demo_aws.geo_gold.lce_trade_area_features e
         """)
 
         if using_preselected:
@@ -713,8 +712,8 @@ with tab3:
         else:
             candidates = query(user_token, """
                 SELECT store_number, city, state, latitude, longitude, predicted_annual_sales,
-                       total_population
-                FROM jdub_demo_aws.geospatial_site_selection.gold_seed_points_expansion_top_25
+                       population
+                FROM jdub_demo_aws.geo_gold.lce_expansion_candidates
             """)
 
     if not existing.empty and not candidates.empty:
@@ -807,11 +806,11 @@ with tab3:
             st.subheader("Recommended Locations")
 
             # Create a styled Plotly table
-            display_df = selected_df[['store_number', 'predicted_annual_sales', 'total_population']].sort_values('predicted_annual_sales', ascending=False).reset_index(drop=True)
+            display_df = selected_df[['store_number', 'predicted_annual_sales', 'population']].sort_values('predicted_annual_sales', ascending=False).reset_index(drop=True)
 
             # Format the values for display
             formatted_sales = ['${:,.0f}'.format(val) for val in display_df['predicted_annual_sales']]
-            formatted_pop = ['{:,.0f}'.format(val) for val in display_df['total_population']]
+            formatted_pop = ['{:,.0f}'.format(val) for val in display_df['population']]
 
             fig = go.Figure(data=[go.Table(
                 header=dict(
@@ -852,14 +851,14 @@ with tab3:
 
                         # Create the expansion_locations_final table by joining with enriched data
                         save_query = f"""
-                        CREATE OR REPLACE TABLE jdub_demo_aws.geospatial_site_selection.gold_expansion_locations_final AS
+                        CREATE OR REPLACE TABLE jdub_demo_aws.geo_gold.lce_expansion_final AS
                         SELECT e.*
-                        FROM jdub_demo_aws.geospatial_site_selection.gold_seed_point_isochrones_features e
+                        FROM jdub_demo_aws.geo_gold.lce_expansion_candidates e
                         WHERE e.store_number IN ({store_numbers_str})
                         """
 
                         query(user_token, save_query)
-                        st.success(f"✓ Saved {len(store_numbers)} locations to jdub_demo_aws.geospatial_site_selection.gold_expansion_locations_final")
+                        st.success(f"✓ Saved {len(store_numbers)} locations to jdub_demo_aws.geo_gold.lce_expansion_final")
                     except Exception as e:
                         st.error(f"Failed to save results: {e}")
     else:

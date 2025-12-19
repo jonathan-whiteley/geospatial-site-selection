@@ -3,8 +3,7 @@ bundle:
 
 # PREREQUISITES - Manual Data Upload Required:
 # Before running any jobs, ensure these tables exist in the bronze schema (geo_bronze):
-# - competitor_locations (competitor store locations with lat/lon and store_type)
-# - rmc_retail_locations_grocery (RMC retail store locations with lat/lon)
+# - lce_locations_mass (Little Caesars store locations with lat/lon)
 #
 # Execution order: bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
 # See PIPELINE_DEPENDENCIES.md for detailed documentation
@@ -33,8 +32,6 @@ targets:
       bronze_schema: geo_bronze
       silver_schema: geo_silver
       gold_schema: geo_gold
-      valhalla_cluster_id: "1216-204746-w1azw45u"
-      mapbox_token: "pk.eyJ1IjoiandoaXRlbGV5NTI4MCIsImEiOiJjbWphbmVxem8wOGFuM2xweXBteHVqc2I2In0.d-Du72-AiqWe0j5n106UKw"
 
 variables:
   # Unity Catalog
@@ -81,14 +78,6 @@ variables:
     description: "Databricks node type - m5d.xlarge has local storage, m5.xlarge needs EBS"
     default: "m5d.xlarge"
 
-  valhalla_cluster_id:
-    description: "Existing cluster ID for Valhalla tasks (e.g., Field Eng Shared UC LTS Cluster)"
-    default: ""
-
-  mapbox_token:
-    description: "Mapbox API access token for isochrone generation (get free at https://account.mapbox.com/)"
-    default: ""
-
   # GraphHopper Configuration
   graphhopper_volume:
     description: "Path to volume for GraphHopper graph storage"
@@ -109,11 +98,11 @@ variables:
 
   isochrone_input_table:
     description: "Full table name for isochrone input"
-    default: "jdub_demo_aws.geo_bronze.rmc_retail_locations_grocery"
+    default: "jdub_demo_aws.geo_bronze.lce_locations_mass"
 
   isochrone_output_table_name:
     description: "Output table name"
-    default: "rmc_urbanicity_based_isochrones"
+    default: "lce_isochrones_5min"
 
   # POI Configuration
   state_filter:
