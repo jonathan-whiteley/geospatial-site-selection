@@ -73,41 +73,20 @@ variables:
     description: "OSM region name"
     default: "massachusetts"
 
-  # Cluster Configuration
-  node_type:
-    description: "Databricks node type - m5d.xlarge has local storage, m5.xlarge needs EBS"
-    default: "m5d.xlarge"
-
-  # GraphHopper Configuration
-  graphhopper_volume:
-    description: "Path to volume for GraphHopper graph storage"
-    default: "/Volumes/jdub_demo_aws/geo_bronze/graphhopper_data/"
-
-  # Isochrone Configuration
-  drive_time_buckets:
-    description: "Comma-separated list of drive time buckets in minutes"
-    default: "5,10,15,20,30"
-
-  time_limit_minutes:
-    description: "Maximum search time limit in minutes"
-    default: "40"
-
-  tolerance_meters:
-    description: "Geometry simplification tolerance in meters"
-    default: "50"
-
-  isochrone_input_table:
-    description: "Full table name for isochrone input"
-    default: "jdub_demo_aws.geo_bronze.lce_locations_mass"
-
-  isochrone_output_table_name:
-    description: "Output table name"
-    default: "lce_isochrones_5min"
-
   # POI Configuration
   state_filter:
     description: "State filter for POI extraction (e.g., MA for Massachusetts). Leave empty to process entire country."
     default: "MA"
+
+  # Manual Upload Tables
+  lce_locations_table:
+    description: "Little Caesars store locations table (must be manually uploaded)"
+    default: "lce_locations_mass"
+
+  # CARTO Marketplace Configuration
+  carto_table:
+    description: "CARTO Marketplace H3 features table"
+    default: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
 
   # Notifications
   user_email:

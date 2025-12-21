@@ -1,7 +1,7 @@
 resources:
   jobs:
     bronze_census_ingestion:
-      name: "Bronze - Census & OSM"
+      name: "Bronze - Census & POI"
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -19,10 +19,9 @@ resources:
       tags:
         Environment: "${bundle.target}"
         Layer: "bronze"
-        Pipeline: "census_osm_ingestion"
+        Pipeline: "census_poi_ingestion"
 
       # Serverless environment definition
-      # Using default serverless environment with task-level libraries
       environments:
         - environment_key: "Serverless"
           spec:
@@ -32,63 +31,33 @@ resources:
               - "osmium"
 
       tasks:
-        - task_key: "census_demographics"
+        # Consolidated census ingestion (boundaries + demographics)
+        - task_key: "census_ingestion"
           notebook_task:
-            notebook_path: ../transformations/01_bronze/census_demographics.ipynb
+            notebook_path: ../transformations/01_bronze/census.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
-              census_api_key: "${var.census_api_key}"
-              census_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/census_data/"
-              config_path: "${workspace.file_path}/resources/configs/census_variables.yml"
-              acs_year: "${var.acs_year}"
-              state_fips: "${var.state_fips}"
-
-          environment_key: "Serverless"
-
-          timeout_seconds: 3600
-
-        - task_key: "census_boundaries"
-          notebook_task:
-            notebook_path: ../transformations/01_bronze/census_boundaries.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              bronze_schema: "${var.bronze_schema}"
-              boundary_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/boundary_data/"
               state_fips: "${var.state_fips}"
               year: "${var.acs_year}"
+              census_api_key: "${var.census_api_key}"
+              config_path: "${workspace.file_path}/resources/configs/census_variables.yml"
 
           environment_key: "Serverless"
-
           timeout_seconds: 3600
 
-        - task_key: "osm_download"
+        # Consolidated POI ingestion (OSM download + extraction)
+        - task_key: "poi_ingestion"
           notebook_task:
-            notebook_path: ../transformations/01_bronze/osm_download.ipynb
+            notebook_path: ../transformations/01_bronze/poi_ingestion.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
-              osm_data_volume: "/Volumes/${var.catalog}/${var.bronze_schema}/osm_data/"
               osm_url: "${var.osm_url}"
-              region: "${var.osm_region}"
-
-          environment_key: "Serverless"
-
-          timeout_seconds: 3600
-
-        - task_key: "extract_pois"
-          depends_on:
-            - task_key: "osm_download"
-          notebook_task:
-            notebook_path: ../transformations/01_bronze/extract_pois.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              bronze_schema: "${var.bronze_schema}"
               osm_region: "${var.osm_region}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
 
           environment_key: "Serverless"
-
           timeout_seconds: 7200
 
       max_concurrent_runs: 1

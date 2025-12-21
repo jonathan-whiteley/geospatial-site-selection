@@ -1,15 +1,16 @@
 resources:
   jobs:
     gold_feature_engineering:
-      name: "Gold - H3 Features & Predictions"
+      name: "Gold - Predictions & Visualization"
 
       # PREREQUISITES - Required tables from silver schema:
-      # These tables must be created by silver_poi_processing job first:
-      # - h3_features_carto (CARTO marketplace data filtered to MA)
-      # - lce_isochrones_5min (created by silver job)
-      # - osm_pois (created by silver job)
+      # - expansion_candidates_h3 (from candidate_features_h3.ipynb)
+      # - isochrones_lce (from create_osrm_isochrones.ipynb)
+      # - existing_stores_h3 (from aggregate_existing_lce_features.ipynb)
+      # - pois_competitors (from clean_pois.ipynb)
+      # - isochrones_convenience (from create_osrm_isochrones.ipynb)
       #
-      # Run order: bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
+      # Run order: bronze → silver → gold
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -27,7 +28,7 @@ resources:
       tags:
         Environment: "${bundle.target}"
         Layer: "gold"
-        Pipeline: "feature_engineering"
+        Pipeline: "predictions_visualization"
 
       # Serverless environment definition
       environments:
@@ -35,54 +36,36 @@ resources:
           spec:
             dependencies:
               - "pyyaml"
+              - "keplergl"
 
       tasks:
-
-        - task_key: "aggregate_lce_trade_area_features"
+        # Expansion prediction with business constraints
+        - task_key: "expansion_prediction"
           notebook_task:
-            notebook_path: ../transformations/03_gold/aggregate_trade_area_features.ipynb
+            notebook_path: ../transformations/03_gold/expansion_prediction.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
-              trade_area_table: "${var.catalog}.${var.silver_schema}.lce_isochrones_5min"
-              output_table_override: "lce_trade_area_features"
+              min_predicted_sales: "250000"
+              min_population: "5000"
 
           environment_key: "Serverless"
-
           timeout_seconds: 3600
 
-        # NOTE: Requires seed_points_expansion table in bronze and corresponding isochrones in silver
-        # - task_key: "aggregate_seed_points_trade_area_features"
-        #   depends_on:
-        #     - task_key: "create_h3_features"
-        #   notebook_task:
-        #     notebook_path: ../transformations/03_gold/aggregate_trade_area_features.ipynb
-        #     base_parameters:
-        #       catalog: "${var.catalog}"
-        #       silver_schema: "${var.silver_schema}"
-        #       gold_schema: "${var.gold_schema}"
-        #       config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
-        #       trade_area_table: "${var.catalog}.${var.silver_schema}.seed_points_expansion_isochrones"
-        #       output_table_override: "seed_points_expansion_isochrones_enriched"
-        #
-        #   environment_key: "Serverless"
-        #
-        #   timeout_seconds: 3600
-        #   max_retries: 2
-
-        - task_key: "predict_seed_point_sales"
+        # Visualization layer preparation
+        - task_key: "viz_layer_prep"
           depends_on:
-            - task_key: "aggregate_lce_trade_area_features"
+            - task_key: "expansion_prediction"
           notebook_task:
-            notebook_path: ../transformations/03_gold/predict_seed_point_sales.ipynb
+            notebook_path: ../transformations/03_gold/viz_layer_prep.ipynb
             base_parameters:
               catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
 
           environment_key: "Serverless"
-
           timeout_seconds: 3600
 
       max_concurrent_runs: 1

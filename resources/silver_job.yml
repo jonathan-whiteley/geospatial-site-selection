@@ -1,19 +1,15 @@
 resources:
   jobs:
     silver_poi_processing:
-      name: "Silver - Isochrones"
+      name: "Silver - Feature Engineering"
 
       # PREREQUISITES - Required tables in bronze schema:
-      # These tables must exist before running this job:
       # - lce_locations_mass (Little Caesars stores - manually uploaded)
-      #
-      # Tables created by bronze_census_ingestion job:
       # - census_states (state boundaries)
-      # - osm_pois_raw (optional - for custom POI analysis)
+      # - raw_pois (from poi_ingestion)
       #
       # External data sources:
       # - CARTO marketplace: carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3
-      #   (Provides demographics + POI counts at H3-8 resolution)
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -31,7 +27,7 @@ resources:
       tags:
         Environment: "${bundle.target}"
         Layer: "silver"
-        Pipeline: "poi_processing_isochrones"
+        Pipeline: "feature_engineering"
 
       # Serverless environment definition
       environments:
@@ -45,6 +41,7 @@ resources:
               - "folium"
 
       tasks:
+        # Clean POIs and split into convenience/competitors
         - task_key: "clean_pois"
           notebook_task:
             notebook_path: ../transformations/02_silver/clean_pois.ipynb
@@ -56,28 +53,12 @@ resources:
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
 
           environment_key: "Serverless"
-
           timeout_seconds: 3600
 
-        - task_key: "create_h3_features"
-          # NO LONGER depends on clean_pois - uses CARTO POI data instead
-          notebook_task:
-            notebook_path: ../transformations/02_silver/create_h3_features.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              bronze_schema: "${var.bronze_schema}"
-              silver_schema: "${var.silver_schema}"
-              gold_schema: "${var.gold_schema}"
-              state_fips: "${var.state_fips}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
-
-          environment_key: "Serverless"
-
-          timeout_seconds: 7200
-
-        - task_key: "create_lce_isochrones_osrm"
+        # Generate LCE store isochrones
+        - task_key: "create_lce_isochrones"
           depends_on:
-            - task_key: "create_h3_features"
+            - task_key: "clean_pois"
           notebook_task:
             notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
             base_parameters:
@@ -85,11 +66,58 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
-              input_table: "lce_locations_mass"
-              output_table: "lce_isochrones_5min"
+              lce_locations_table: "${var.lce_locations_table}"
+              input_source: "lce"
 
           environment_key: "Serverless"
+          timeout_seconds: 7200
 
+        # Generate convenience store isochrones
+        - task_key: "create_convenience_isochrones"
+          depends_on:
+            - task_key: "clean_pois"
+          notebook_task:
+            notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+              input_source: "convenience"
+
+          environment_key: "Serverless"
+          timeout_seconds: 7200
+
+        # Aggregate features for existing LCE stores
+        - task_key: "aggregate_existing_lce_features"
+          depends_on:
+            - task_key: "create_lce_isochrones"
+          notebook_task:
+            notebook_path: ../transformations/02_silver/aggregate_existing_lce_features.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+              carto_table: "${var.carto_table}"
+              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
+
+          environment_key: "Serverless"
+          timeout_seconds: 3600
+
+        # Generate expansion candidates with variable K-rings
+        - task_key: "candidate_features_h3"
+          depends_on:
+            - task_key: "aggregate_existing_lce_features"
+          notebook_task:
+            notebook_path: ../transformations/02_silver/candidate_features_h3.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              carto_table: "${var.carto_table}"
+              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
+
+          environment_key: "Serverless"
           timeout_seconds: 7200
 
       max_concurrent_runs: 1
