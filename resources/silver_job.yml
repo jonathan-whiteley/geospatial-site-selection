@@ -55,12 +55,12 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
-        # Generate LCE store isochrones
-        - task_key: "create_lce_isochrones"
+        # Generate LCE store isochrones (Valhalla)
+        - task_key: "create_isochrones_lce"
           depends_on:
             - task_key: "clean_pois"
           notebook_task:
-            notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
+            notebook_path: ../transformations/02_silver/create_isochrones.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
@@ -68,22 +68,24 @@ resources:
               gold_schema: "${var.gold_schema}"
               lce_locations_table: "${var.lce_locations_table}"
               input_source: "lce"
+              valhalla_url: "https://valhalla1.openstreetmap.de"
 
           environment_key: "Serverless"
           timeout_seconds: 7200
 
-        # Generate convenience store isochrones
-        - task_key: "create_convenience_isochrones"
+        # Generate convenience store isochrones (Valhalla)
+        - task_key: "create_isochrones_convenience"
           depends_on:
             - task_key: "clean_pois"
           notebook_task:
-            notebook_path: ../transformations/02_silver/create_osrm_isochrones.ipynb
+            notebook_path: ../transformations/02_silver/create_isochrones.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
               input_source: "convenience"
+              valhalla_url: "https://valhalla1.openstreetmap.de"
 
           environment_key: "Serverless"
           timeout_seconds: 7200
@@ -91,7 +93,7 @@ resources:
         # Aggregate features for existing LCE stores
         - task_key: "aggregate_existing_lce_features"
           depends_on:
-            - task_key: "create_lce_isochrones"
+            - task_key: "create_isochrones_lce"
           notebook_task:
             notebook_path: ../transformations/02_silver/aggregate_existing_lce_features.ipynb
             base_parameters:

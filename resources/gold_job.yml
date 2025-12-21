@@ -5,10 +5,10 @@ resources:
 
       # PREREQUISITES - Required tables from silver schema:
       # - expansion_candidates_h3 (from candidate_features_h3.ipynb)
-      # - isochrones_lce (from create_osrm_isochrones.ipynb)
+      # - isochrones_lce (from create_isochrones.ipynb - Valhalla)
       # - existing_stores_h3 (from aggregate_existing_lce_features.ipynb)
       # - pois_competitors (from clean_pois.ipynb)
-      # - isochrones_convenience (from create_osrm_isochrones.ipynb)
+      # - isochrones_convenience (from create_isochrones.ipynb - Valhalla)
       #
       # Run order: bronze → silver → gold
 

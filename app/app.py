@@ -321,11 +321,15 @@ with tab1:
                    e.income_75000_to_99999, e.income_100000_to_124999,
                    e.income_125000_to_149999, e.income_150000_to_199999, e.income_200000_or_more,
                    e.edu_bachelors, e.edu_graduate_professional,
-                   e.poi_count_amenity, e.poi_count_leisure, e.poi_count_shop, e.poi_count_tourism,
-                   e.poi_count_office, e.poi_count_public_transport,
+                   COALESCE(e.total_retail_pois, 0) as poi_count_shop,
+                   COALESCE(e.total_food_drink_pois, 0) as poi_count_amenity,
+                   COALESCE(e.total_leisure_pois, 0) as poi_count_leisure,
+                   COALESCE(e.total_tourism_pois, 0) as poi_count_tourism,
+                   COALESCE(e.total_education_pois, 0) as poi_count_office,
+                   COALESCE(e.total_transportation_pois, 0) as poi_count_public_transport,
                    r.address, r.zip_code
             FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
-            JOIN jdub_demo_aws.geo_gold.lce_trade_area_features e
+            JOIN jdub_demo_aws.geo_silver.existing_stores_h3 e
                 ON s.store_number = e.store_number
             JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
                 ON s.store_number = r.store_number
@@ -335,7 +339,7 @@ with tab1:
         try:
             isochrones = query(user_token, """
                 SELECT store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-                FROM jdub_demo_aws.geo_gold.lce_trade_area_features
+                FROM jdub_demo_aws.geo_silver.existing_stores_h3
             """)
         except:
             # If isochrone query fails, create empty dataframe
@@ -497,7 +501,6 @@ with tab1:
             """, unsafe_allow_html=True)
 
         with driver_cols[1]:
-        with driver_cols[1]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">High Income HH ($75k+)</div>
@@ -507,7 +510,6 @@ with tab1:
             """, unsafe_allow_html=True)
 
         with driver_cols[2]:
-        with driver_cols[2]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
                 <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Higher Education</div>
@@ -516,7 +518,6 @@ with tab1:
             </div>
             """, unsafe_allow_html=True)
 
-        with driver_cols[3]:
         with driver_cols[3]:
             st.markdown(f"""
             <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
@@ -537,10 +538,9 @@ with tab2:
 
     with st.spinner("Loading candidate data..."):
         candidates = query(user_token, """
-            SELECT store_number, city, state, latitude, longitude,
-                   predicted_annual_sales, population, total_poi_count,
-                   commute_less_than_10_min
-            FROM jdub_demo_aws.geo_gold.lce_expansion_candidates
+            SELECT h3_cell_id as store_number, 'TBD' as city, 'MA' as state, latitude, longitude,
+                   predicted_annual_sales, population, total_poi as total_poi_count
+            FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced
         """)
 
     if not candidates.empty:
@@ -627,7 +627,7 @@ with tab2:
                    e.latitude, e.longitude,
                    r.address, r.zip_code
             FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
-            JOIN jdub_demo_aws.geo_gold.lce_trade_area_features e
+            JOIN jdub_demo_aws.geo_silver.existing_stores_h3 e
                 ON s.store_number = e.store_number
             JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
                 ON s.store_number = r.store_number
@@ -700,7 +700,7 @@ with tab3:
     with st.spinner("Loading optimization data..."):
         existing = query(user_token, """
             SELECT e.latitude, e.longitude
-            FROM jdub_demo_aws.geo_gold.lce_trade_area_features e
+            FROM jdub_demo_aws.geo_silver.existing_stores_h3 e
         """)
 
         if using_preselected:
@@ -711,9 +711,9 @@ with tab3:
                 st.rerun()
         else:
             candidates = query(user_token, """
-                SELECT store_number, city, state, latitude, longitude, predicted_annual_sales,
-                       population
-                FROM jdub_demo_aws.geo_gold.lce_expansion_candidates
+                SELECT h3_cell_id as store_number, 'TBD' as city, 'MA' as state, latitude, longitude, 
+                       predicted_annual_sales, population
+                FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced
             """)
 
     if not existing.empty and not candidates.empty:
@@ -853,8 +853,8 @@ with tab3:
                         save_query = f"""
                         CREATE OR REPLACE TABLE jdub_demo_aws.geo_gold.lce_expansion_final AS
                         SELECT e.*
-                        FROM jdub_demo_aws.geo_gold.lce_expansion_candidates e
-                        WHERE e.store_number IN ({store_numbers_str})
+                        FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced e
+                        WHERE e.h3_cell_id IN ({store_numbers_str})
                         """
 
                         query(user_token, save_query)

@@ -4,17 +4,12 @@
 
 poi_extraction:
   # Extract all POIs (set to true) or filter by specific tags (set to false)
-  extract_all: true
+  extract_all: false
 
   # POI tag categories to extract (only used if extract_all is false)
   poi_tag_categories:
     - shop
     - amenity
-    - leisure
-    - tourism
-    - office
-    - public_transport
-    - railway
 
 poi_cleaning:
   # POI ID prefix
@@ -24,11 +19,6 @@ poi_cleaning:
   category_priority:
     - shop
     - amenity
-    - leisure
-    - tourism
-    - office
-    - public_transport
-    - railway
 
   # Address field names (OSM standard)
   address_fields:
