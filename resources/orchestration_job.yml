@@ -1,7 +1,7 @@
 resources:
   jobs:
     site_selection_pipeline:
-      name: "LCE Site Selection - Full Pipeline"
+      name: "Site Selection - Full Pipeline"
 
       # PREREQUISITES - Manual Data Upload Required:
       # Before running this pipeline, ensure these tables exist in the bronze schema:
@@ -25,6 +25,7 @@ resources:
       environments:
         - environment_key: "Serverless"
           spec:
+            environment_version: "4"
             dependencies:
               - "pyyaml"
 

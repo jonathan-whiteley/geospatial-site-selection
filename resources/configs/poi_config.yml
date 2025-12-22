@@ -40,14 +40,6 @@ poi_cleaning:
     longitude_min: -180
     longitude_max: 180
 
-
-table_names:
-  # Bronze layer table suffix
-  bronze_raw_suffix: "osm_pois_raw"
-
-  # Silver layer table suffix
-  silver_cleaned_suffix: "osm_pois"
-
 paths:
   # Temporary file path for OSM processing
   temp_path: "/dbfs/tmp"

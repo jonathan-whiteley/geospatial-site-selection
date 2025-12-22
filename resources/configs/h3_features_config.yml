@@ -25,42 +25,12 @@ carto_demographic_variables:
     - population         # Total population
     - male              # Total male
     - female            # Total female
-    - female_under_1
-    - female_1_to_4
-    - female_5_to_9
-    - female_10_to_14
-    - female_15_to_19
-    - female_18_to_24   # Key demographic
+    - male_20_to_24     # Key demographic - young adults
     - female_20_to_24
-    - female_25_to_29   # Young adults
-    - female_30_to_34
-    - female_35_to_39
-    - female_40_to_44
-    - female_45_to_49
-    - female_45_to_54   # Mid-age
-    - female_50_to_54
-    - female_55_to_59
-    - female_60_to_64
-    - female_65_to_74   # Seniors
-    - female_70_to_74
-    - male_under_1
-    - male_1_to_4
-    - male_5_to_9
-    - male_10_to_14
-    - male_15_to_19
-    - male_18_to_24     # Key demographic
-    - male_20_to_24
     - male_25_to_29     # Young adults
+    - female_25_to_29
     - male_30_to_34
-    - male_35_to_39
-    - male_40_to_44
-    - male_45_to_49
-    - male_45_to_54     # Mid-age
-    - male_50_to_54
-    - male_55_to_59
-    - male_60_to_64
-    - male_65_to_74     # Seniors
-    - male_70_to_74
+    - female_30_to_34
 
   # Income variables (from CARTO - note different binning)
   income:
@@ -70,47 +40,34 @@ carto_demographic_variables:
     - income_25000_to_34999
     - income_35000_to_49999
     - income_50000_to_74999
-    - income_75000_to_99999      # High income threshold
-    - income_100000_to_124999    # High income
-    - income_125000_to_149999    # High income
-    - income_150000_to_199999    # High income
-    - income_200000_or_more      # High income
+    - income_75000_to_99999
+    - income_100000_to_124999
+    - income_125000_to_149999
+    - income_150000_to_199999
+    - income_200000_or_more
 
   # Household variables (from CARTO)
   households:
     - total_households
     - median_household_income
 
-  # Education variables (from CARTO - check availability)
+  # Education variables (from CARTO)
   education:
     - edu_less_than_high_school
     - edu_high_school
-    - edu_some_college_associate
     - edu_bachelors
     - edu_graduate_professional
 
-  # Employment variables (from CARTO - check availability)
+  # Employment variables (from CARTO)
   employment:
     - employed
     - unemployed
-    - not_in_labor_force
 
   # Housing variables (from CARTO)
   housing:
     - total_housing_units
-    - occupied_housing_units
-    - vacant_housing_units
     - median_home_value
     - median_rent
-
-  # Commute variables (from CARTO - check availability)
-  commute:
-    - commute_less_than_10_min
-    - commute_10_to_19_min
-    - commute_20_to_29_min
-    - commute_30_to_44_min
-    - commute_45_to_59_min
-    - commute_60_plus_min
 
 # Urbanicity Score Configuration
 urbanicity:

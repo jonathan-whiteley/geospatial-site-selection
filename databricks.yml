@@ -1,12 +1,41 @@
 bundle:
   name: geospatial-site-selection
 
-# PREREQUISITES - Manual Data Upload Required:
-# Before running any jobs, ensure these tables exist in the bronze schema (geo_bronze):
-# - lce_locations_mass (Little Caesars store locations with lat/lon)
+# ============================================================================
+# DEPLOYMENT CONFIGURATION FOR NEW WORKSPACE
+# ============================================================================
+# When deploying to a NEW workspace, update these settings:
 #
-# Execution order: bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
+# REQUIRED UPDATES (marked with ⚠️):
+# 1. WORKSPACE HOST (line 53):
+#    - Update `workspace.host` to your Databricks workspace URL
+#
+# 2. CATALOG & SCHEMAS (lines 56-59):
+#    - Update `catalog` to your Unity Catalog name
+#    - Update `bronze_schema`, `silver_schema`, `gold_schema` to your schema names
+#
+# 3. USER EMAIL (line 122):
+#    - Update `user_email` for job failure notifications
+#
+# 4. CENSUS API KEY (line 83):
+#    - Get a free API key from: https://api.census.gov/data/key_signup.html
+#    - Update `census_api_key` with your key
+#
+# OPTIONAL UPDATES (marked with ℹ️):
+# - State/Region (lines 91-109): Update for different geographic area
+# - CARTO Table (line 116): Update if using different CARTO data source
+#
+# DEPLOYMENT STEPS:
+# 1. Update the REQUIRED settings above (marked with ⚠️)
+# 2. Deploy the bundle to create Unity Catalog resources:
+#    $ databricks bundle deploy -t development
+# 3. Manually upload the LCE store locations table to:
+#    {catalog}.{bronze_schema}.lce_locations_mass
+# 4. Run the pipeline jobs in order:
+#    - bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
+#
 # See PIPELINE_DEPENDENCIES.md for detailed documentation
+# ============================================================================
 
 include:
   - resources/bronze_job.yml
@@ -26,8 +55,10 @@ targets:
     mode: development
     default: true
     workspace:
+      # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
       host: https://e2-demo-field-eng.cloud.databricks.com
     variables:
+      # ⚠️ UPDATE THESE: Replace with your Unity Catalog and schema names
       catalog: jdub_demo_aws
       bronze_schema: geo_bronze
       silver_schema: geo_silver
@@ -52,6 +83,7 @@ variables:
     default: "geo_gold"
 
   # Census API Configuration
+  # ⚠️ UPDATE THIS: Get your free API key from https://api.census.gov/data/key_signup.html
   census_api_key:
     description: "US Census Bureau API key"
     default: "7f801eabbdf7763d74330e776061901753eb2878"
@@ -60,11 +92,13 @@ variables:
     description: "ACS 5-Year ending year"
     default: "2023"
 
+  # ℹ️ OPTIONAL: Update these if analyzing a different state/region
   state_fips:
-    description: "State FIPS code (25 = Massachusetts)"
+    description: "State FIPS code (25 = Massachusetts, 06 = California, 36 = New York, etc.)"
     default: "25"
 
   # OSM Configuration
+  # ℹ️ OPTIONAL: Update for different region from https://download.geofabrik.de/
   osm_url:
     description: "Geofabrik OSM download URL"
     default: "https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf"
@@ -74,6 +108,7 @@ variables:
     default: "massachusetts"
 
   # POI Configuration
+  # ℹ️ OPTIONAL: Update to match your state (e.g., CA, NY, TX)
   state_filter:
     description: "State filter for POI extraction (e.g., MA for Massachusetts). Leave empty to process entire country."
     default: "MA"
@@ -84,11 +119,13 @@ variables:
     default: "lce_locations_mass"
 
   # CARTO Marketplace Configuration
+  # ℹ️ OPTIONAL: Update if using different CARTO data source
   carto_table:
     description: "CARTO Marketplace H3 features table"
     default: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
 
   # Notifications
+  # ⚠️ UPDATE THIS: Replace with your email for job failure alerts
   user_email:
     description: "Email address for job notifications"
     default: "jonathan.whiteley@databricks.com"

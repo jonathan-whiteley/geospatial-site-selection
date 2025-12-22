@@ -22,10 +22,9 @@ site-selection-demo/
 │   ├── init_scripts/                 # Cluster init scripts
 │   │   └── init-osrm.sh              # OSRM routing engine setup (optional)
 │   └── configs/                      # Feature/variable configs
-│       ├── store_config.yml          # Store & sales config
+│       ├── census_variables.yml      # Census ACS variables config
 │       ├── poi_config.yml            # POI extraction config
-│       ├── h3_features_config.yml    # CARTO features config
-│       └── isochrone_config.yml      # OSRM isochrone config
+│       └── h3_features_config.yml    # CARTO features config
 ├── transformations/
 │   ├── 01_bronze/                    # Raw data ingestion
 │   │   ├── osm_download.ipynb        # Geofabrik OSM PBF download
@@ -84,25 +83,77 @@ Features:
 ## Deployment
 
 ### Prerequisites
-- Databricks workspace with Unity Catalog
-- Catalog: `jdub_demo_aws`
-- Schemas: `geo_bronze`, `geo_silver`, `geo_gold`
-- Environment variable: `DATABRICKS_TOKEN`
+- Databricks workspace with Unity Catalog enabled
+- Census API key (free): https://api.census.gov/data/key_signup.html
+- Databricks CLI installed and authenticated
 
-### Deploy Bundle
+### Step 1: Configure for Your Workspace
+
+Edit `databricks.yml` and update these **REQUIRED** settings (marked with ⚠️):
+
+1. **Workspace Host** (line 53)
+   ```yaml
+   host: https://your-workspace.cloud.databricks.com
+   ```
+
+2. **Catalog & Schemas** (lines 56-59)
+   ```yaml
+   catalog: your_catalog_name
+   bronze_schema: geo_bronze
+   silver_schema: geo_silver
+   gold_schema: geo_gold
+   ```
+
+3. **Census API Key** (line 83)
+   ```yaml
+   census_api_key: "your_api_key_here"
+   ```
+
+4. **User Email** (line 122)
+   ```yaml
+   user_email: "your.email@company.com"
+   ```
+
+See the header comments in `databricks.yml` for full configuration details.
+
+### Step 2: Deploy Bundle (Creates Unity Catalog Resources)
+
+**IMPORTANT**: Deploy the bundle FIRST to create Unity Catalog schemas and volumes:
+
 ```bash
-source .env
-databricks bundle deploy --target development
+databricks bundle deploy -t development
 ```
 
-### Run Jobs
-```bash
-databricks bundle run bronze_census_ingestion --target development
-databricks bundle run silver_poi_processing --target development
-databricks bundle run gold_feature_engineering --target development
+This creates:
+- Schemas: `{catalog}.geo_bronze`, `{catalog}.geo_silver`, `{catalog}.geo_gold`
+- Volume: `{catalog}.geo_bronze.osm_data` (required for POI ingestion)
+- Jobs: bronze_census_ingestion, silver_poi_processing, gold_feature_engineering
+
+### Step 3: Upload LCE Store Locations
+
+Manually upload your store locations table to:
+```
+{catalog}.{bronze_schema}.lce_locations_mass
 ```
 
-### Deploy App
+Required columns: `store_number`, `latitude`, `longitude`, `city`, `state`
+
+### Step 4: Run Pipeline Jobs
+
+Run jobs in order (or use the orchestration job to run all):
+
+```bash
+# Option A: Run individual jobs
+databricks bundle run bronze_census_ingestion -t development
+databricks bundle run silver_poi_processing -t development
+databricks bundle run gold_feature_engineering -t development
+
+# Option B: Run full pipeline (runs all jobs in sequence)
+databricks bundle run site_selection_pipeline -t development
+```
+
+### Step 5: Deploy Streamlit App (Optional)
+
 ```bash
 databricks apps deploy lce-site-selection --source-code-path app/
 ```

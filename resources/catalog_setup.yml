@@ -17,30 +17,9 @@ resources:
       comment: "Gold layer - aggregated features and business-level aggregates"
 
   volumes:
-    census_data_volume:
-      name: "census_data"
-      catalog_name: "${var.catalog}"
-      schema_name: "${var.bronze_schema}"
-      volume_type: "MANAGED"
-      comment: "Raw Census Bureau API data (demographics, boundaries)"
-
     osm_data_volume:
       name: "osm_data"
       catalog_name: "${var.catalog}"
       schema_name: "${var.bronze_schema}"
       volume_type: "MANAGED"
-      comment: "Raw OpenStreetMap road network data"
-
-    boundary_data_volume:
-      name: "boundary_data"
-      catalog_name: "${var.catalog}"
-      schema_name: "${var.bronze_schema}"
-      volume_type: "MANAGED"
-      comment: "Census geospatial boundary files"
-
-    graphhopper_data_volume:
-      name: "graphhopper_data"
-      catalog_name: "${var.catalog}"
-      schema_name: "${var.bronze_schema}"
-      volume_type: "MANAGED"
-      comment: "Processed GraphHopper routing graph data"
+      comment: "Raw OpenStreetMap PBF files for POI extraction"
