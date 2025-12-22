@@ -1,6 +1,6 @@
-# Little Caesars Site Selection - Massachusetts
+# LCE Site Selection Platform
 
-Geospatial analytics platform for Little Caesars retail site selection using Databricks, Unity Catalog, and OSRM routing.
+Geospatial analytics platform for LCE retail site selection using Databricks, Unity Catalog, and OSRM routing.
 
 ## Architecture
 
@@ -46,7 +46,7 @@ site-selection-demo/
 ## Data Pipeline
 
 ### Bronze Layer
-- **Store Locations**: Little Caesars stores in Massachusetts (pre-loaded)
+- **Store Locations**: LCE store locations (pre-loaded)
 - **OSM Road Network**: Geofabrik PBF files for routing
 - **Census Boundaries**: State boundaries (TIGER/Line)
 - **POIs**: Points of interest extracted from OSM
@@ -65,12 +65,12 @@ site-selection-demo/
 
 Three-tab dashboard for site analysis:
 
-1. **Current Network**: View Little Caesars stores in MA with sales, 5-min isochrones, and key demographics
+1. **Current Network**: View LCE store locations with sales, 5-min isochrones, and key demographics
 2. **Expansion Candidates**: Map of potential new locations with cannibalization filtering and sales estimates
 3. **Network Optimizer**: Greedy algorithm to select optimal N locations maximizing coverage and revenue
 
 Features:
-- Folium map visualizations with MA state boundary
+- Folium map visualizations with state boundary overlay
 - Real-time SQL queries to Unity Catalog
 - Session state persistence for optimization results
 - Export to Delta table
@@ -111,7 +111,7 @@ databricks apps deploy lce-site-selection --source-code-path app/
 
 All job parameters are configurable via `databricks.yml` variables:
 - `catalog`: Unity Catalog name
-- `state_fips`: Target state (25 = Massachusetts)
+- `state_fips`: Target state FIPS code
 - `node_type`: Cluster node type (m5d.xlarge)
 
 Spark version: `17.3.x-scala2.13` with Photon runtime (required for ST_* geospatial functions).
