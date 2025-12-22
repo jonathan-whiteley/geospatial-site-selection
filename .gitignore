@@ -49,3 +49,7 @@ references/
 .idea/
 .vscode/
 *.swp
+
+scratch/
+exploration/
+.claude/
