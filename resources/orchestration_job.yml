@@ -52,5 +52,6 @@ resources:
       max_concurrent_runs: 1
 
       tags:
+        Environment: "dev"
         pipeline: "site_selection"
         layer: "orchestration"

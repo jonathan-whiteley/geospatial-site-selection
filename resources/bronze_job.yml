@@ -22,7 +22,7 @@ resources:
 
       # Job-level tags
       tags:
-        Environment: "${bundle.target}"
+        Environment: "dev"
         Layer: "bronze"
         Pipeline: "census_poi_ingestion"
 

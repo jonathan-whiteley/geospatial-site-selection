@@ -26,7 +26,7 @@ resources:
 
       # Job-level tags
       tags:
-        Environment: "${bundle.target}"
+        Environment: "dev"
         Layer: "gold"
         Pipeline: "predictions_visualization"
 
