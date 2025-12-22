@@ -34,12 +34,29 @@ bundle:
 #    For development with isolated schemas, use:
 #    $ databricks bundle deploy -t development
 #    (Adds dev_{username}_ prefix to avoid conflicts)
+#
+#    If schemas already exist, you may see "Schema already exists" errors.
+#    To fix this, you have two options:
+#
+#    Option A - Delete existing schemas (if safe to do so):
+#      $ databricks schemas delete {catalog}.geo_bronze
+#      $ databricks schemas delete {catalog}.geo_silver
+#      $ databricks schemas delete {catalog}.geo_gold
+#      Then redeploy: databricks bundle deploy
+#
+#    Option B - Deploy without schema management:
+#      Comment out the "schemas:" section in resources/catalog_setup.yml
+#      The bundle will only manage volumes and jobs, not schemas
+#
 # 3. Verify the volume was created (IMPORTANT - troubleshooting step):
 #    $ databricks volumes list {catalog}.{bronze_schema}
 #    Expected output: osm_data volume should be listed
 #    If not listed, the bronze_census_ingestion job will fail with volume errors
-# 4. Manually upload the LCE store locations table to:
-#    {catalog}.{bronze_schema}.lce_locations_mass
+# 4. Manually upload the RAW LCE store locations table to:
+#    {catalog}.{bronze_schema}.lce_locations_raw
+#    Required columns: LocationKey, Y_Coordinate_Latitude, X_Coordinate_Longitude,
+#                      Address1, City, State, Zip, StoreStatus
+#    The bronze job will transform this into lce_locations_mass
 # 5. Run the pipeline jobs in order:
 #    - bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
 #
@@ -135,9 +152,15 @@ variables:
     description: "State filter for POI extraction (e.g., MA for Massachusetts). Leave empty to process entire country."
     default: "MA"
 
-  # Manual Upload Tables
+  # LCE Locations Tables
+  # Raw input table (must be manually uploaded)
+  lce_locations_raw_table:
+    description: "Raw LCE locations table with source system column names (must be manually uploaded)"
+    default: "${var.catalog}.${var.bronze_schema}.lce_locations_raw"
+
+  # Standardized output table name (created by bronze job)
   lce_locations_table:
-    description: "Little Caesars store locations table (must be manually uploaded)"
+    description: "Standardized LCE locations table name (created by bronze_census_ingestion job)"
     default: "lce_locations_mass"
 
   # CARTO Marketplace Configuration
@@ -150,4 +173,4 @@ variables:
   # ⚠️ UPDATE THIS: Replace with your email for job failure alerts
   user_email:
     description: "Email address for job notifications"
-    default: "jonathan.whiteley@databricks.com"
+    default: ""

@@ -118,7 +118,7 @@ See the header comments in `databricks.yml` for full configuration details.
 
 ### Step 2: Deploy Bundle (Creates Unity Catalog Resources)
 
-**IMPORTANT**: Deploy the bundle FIRST to create Unity Catalog schemas and volumes:
+**IMPORTANT**: Deploy the bundle to create schemas, volumes, and jobs:
 
 ```bash
 # Production deployment (uses exact schema names - recommended)
@@ -135,6 +135,10 @@ This creates:
 
 **Note**: Production mode (default) uses exact schema names. Development mode adds `dev_{username}_` prefix to avoid conflicts between developers.
 
+**If schemas already exist** (from a previous deployment):
+- The bundle will detect this and skip schema creation (idempotent behavior)
+- If you get "Schema already exists" errors, see troubleshooting in `databricks.yml` header comments
+
 **Verify the volume was created** (troubleshooting step):
 ```bash
 databricks volumes list {catalog}.geo_bronze
@@ -145,14 +149,27 @@ Expected output should include `osm_data`. If not listed, redeploy the bundle or
 databricks volumes create osm_data {catalog}.geo_bronze --volume-type MANAGED
 ```
 
-### Step 3: Upload LCE Store Locations
+### Step 3: Upload RAW LCE Store Locations
 
-Manually upload your store locations table to:
+Manually upload your **raw** store locations table to:
 ```
-{catalog}.{bronze_schema}.lce_locations_mass
+{catalog}.{bronze_schema}.lce_locations_raw
 ```
 
-Required columns: `store_number`, `latitude`, `longitude`, `city`, `state`
+**Required columns** (raw format from source system):
+- `LocationKey` - Store identifier
+- `Y_Coordinate_Latitude` - Latitude
+- `X_Coordinate_Longitude` - Longitude
+- `Address1` - Street address
+- `City` - City name
+- `State` - State code
+- `Zip` - ZIP code
+- `StoreStatus` - Store status (e.g., "Open Store")
+
+**Note**: The bronze job will transform this raw table into the standardized `lce_locations_mass` table with:
+- Filtered to MA and open stores only
+- Standardized column names (location_id, store_name, latitude, longitude, etc.)
+- Added store name prefix: "Little Caesar's - {City}"
 
 ### Step 4: Run Pipeline Jobs
 

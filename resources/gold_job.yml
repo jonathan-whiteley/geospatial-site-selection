@@ -16,10 +16,10 @@ resources:
       queue:
         enabled: true
 
-      # Email notifications
-      email_notifications:
-        on_failure:
-          - "${var.user_email}"
+      # Email notifications (uncomment and set user_email variable to enable)
+      # email_notifications:
+      #   on_failure:
+      #     - "${var.user_email}"
 
       # Job-level timeout (3 hours)
       timeout_seconds: 10800

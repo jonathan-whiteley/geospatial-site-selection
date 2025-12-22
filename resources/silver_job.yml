@@ -4,9 +4,9 @@ resources:
       name: "Silver - Feature Engineering"
 
       # PREREQUISITES - Required tables in bronze schema:
-      # - lce_locations_mass (Little Caesars stores - manually uploaded)
-      # - census_states (state boundaries)
-      # - raw_pois (from poi_ingestion)
+      # - lce_locations_mass (Little Caesars stores - created by bronze_census_ingestion job)
+      # - census_states (state boundaries - created by bronze_census_ingestion job)
+      # - raw_pois (from bronze_census_ingestion job)
       #
       # External data sources:
       # - CARTO marketplace: carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3
@@ -15,10 +15,10 @@ resources:
       queue:
         enabled: true
 
-      # Email notifications
-      email_notifications:
-        on_failure:
-          - "${var.user_email}"
+      # Email notifications (uncomment and set user_email variable to enable)
+      # email_notifications:
+      #   on_failure:
+      #     - "${var.user_email}"
 
       # Job-level timeout (3 hours)
       timeout_seconds: 10800
