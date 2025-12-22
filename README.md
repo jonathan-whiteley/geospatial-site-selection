@@ -121,6 +121,10 @@ See the header comments in `databricks.yml` for full configuration details.
 **IMPORTANT**: Deploy the bundle FIRST to create Unity Catalog schemas and volumes:
 
 ```bash
+# Production deployment (uses exact schema names - recommended)
+databricks bundle deploy
+
+# Development deployment (adds dev_{username}_ prefix for isolation)
 databricks bundle deploy -t development
 ```
 
@@ -128,6 +132,18 @@ This creates:
 - Schemas: `{catalog}.geo_bronze`, `{catalog}.geo_silver`, `{catalog}.geo_gold`
 - Volume: `{catalog}.geo_bronze.osm_data` (required for POI ingestion)
 - Jobs: bronze_census_ingestion, silver_poi_processing, gold_feature_engineering
+
+**Note**: Production mode (default) uses exact schema names. Development mode adds `dev_{username}_` prefix to avoid conflicts between developers.
+
+**Verify the volume was created** (troubleshooting step):
+```bash
+databricks volumes list {catalog}.geo_bronze
+```
+
+Expected output should include `osm_data`. If not listed, redeploy the bundle or create the volume manually:
+```bash
+databricks volumes create osm_data {catalog}.geo_bronze --volume-type MANAGED
+```
 
 ### Step 3: Upload LCE Store Locations
 
@@ -143,13 +159,16 @@ Required columns: `store_number`, `latitude`, `longitude`, `city`, `state`
 Run jobs in order (or use the orchestration job to run all):
 
 ```bash
-# Option A: Run individual jobs
-databricks bundle run bronze_census_ingestion -t development
-databricks bundle run silver_poi_processing -t development
-databricks bundle run gold_feature_engineering -t development
+# Option A: Run individual jobs (production mode - uses exact schema names)
+databricks bundle run bronze_census_ingestion
+databricks bundle run silver_poi_processing
+databricks bundle run gold_feature_engineering
 
 # Option B: Run full pipeline (runs all jobs in sequence)
-databricks bundle run site_selection_pipeline -t development
+databricks bundle run site_selection_pipeline
+
+# For development mode (with dev_{username}_ prefix):
+databricks bundle run bronze_census_ingestion -t development
 ```
 
 ### Step 5: Deploy Streamlit App (Optional)

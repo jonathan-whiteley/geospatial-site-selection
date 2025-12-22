@@ -28,10 +28,19 @@ bundle:
 # DEPLOYMENT STEPS:
 # 1. Update the REQUIRED settings above (marked with ⚠️)
 # 2. Deploy the bundle to create Unity Catalog resources:
+#    $ databricks bundle deploy
+#    (Uses production target by default - creates resources with exact names)
+#
+#    For development with isolated schemas, use:
 #    $ databricks bundle deploy -t development
-# 3. Manually upload the LCE store locations table to:
+#    (Adds dev_{username}_ prefix to avoid conflicts)
+# 3. Verify the volume was created (IMPORTANT - troubleshooting step):
+#    $ databricks volumes list {catalog}.{bronze_schema}
+#    Expected output: osm_data volume should be listed
+#    If not listed, the bronze_census_ingestion job will fail with volume errors
+# 4. Manually upload the LCE store locations table to:
 #    {catalog}.{bronze_schema}.lce_locations_mass
-# 4. Run the pipeline jobs in order:
+# 5. Run the pipeline jobs in order:
 #    - bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
 #
 # See PIPELINE_DEPENDENCIES.md for detailed documentation
@@ -51,14 +60,27 @@ sync:
     - "resources/configs/*.json"
 
 targets:
-  development:
-    mode: development
+  # Production target - uses exact schema names without dev prefix
+  production:
+    mode: production
     default: true
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
       host: https://e2-demo-field-eng.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       # ⚠️ UPDATE THESE: Replace with your Unity Catalog and schema names
+      catalog: jdub_demo_aws
+      bronze_schema: geo_bronze
+      silver_schema: geo_silver
+      gold_schema: geo_gold
+
+  # Development target - adds dev_{username}_ prefix to avoid conflicts
+  development:
+    mode: development
+    workspace:
+      host: https://e2-demo-field-eng.cloud.databricks.com
+    variables:
       catalog: jdub_demo_aws
       bronze_schema: geo_bronze
       silver_schema: geo_silver
