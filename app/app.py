@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
+from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 from databricks import sql
 from databricks.sdk import WorkspaceClient
@@ -12,11 +13,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 st.set_page_config(
-    page_title="Little Caesars Site Selection",
+    page_title="LCE Hunger Detection Platform",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={
-        'About': "Little Caesars Site Selection Platform - Powered by Geospatial Intelligence"
+        'About': "LCE Hunger Detection Platform - Powered by Databricks"
     }
 )
 
@@ -34,11 +35,11 @@ st.markdown("""
 
     /* Header styling */
     .main-header {
-        background: linear-gradient(90deg, #1e40af 0%, #7c3aed 100%);
+        background: linear-gradient(90deg, #FF6000 0%, #FF8C00 100%);
         padding: 2rem 2rem 1.5rem 2rem;
         border-radius: 12px;
         margin-bottom: 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 32px rgba(255, 96, 0, 0.4);
     }
 
     .logo-title {
@@ -50,7 +51,7 @@ st.markdown("""
 
     .lce-logo {
         background: white;
-        color: #1e40af;
+        color: #FF6000;
         font-weight: 800;
         font-size: 2rem;
         padding: 0.5rem 1rem;
@@ -80,6 +81,7 @@ st.markdown("""
         padding: 0.5rem;
         border-radius: 10px;
         margin-bottom: 2rem;
+        justify-content: center;
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -97,7 +99,7 @@ st.markdown("""
     }
 
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(90deg, #1e40af 0%, #7c3aed 100%) !important;
+        background: linear-gradient(90deg, #FF6000 0%, #FF8C00 100%) !important;
         color: white !important;
     }
 
@@ -137,20 +139,20 @@ st.markdown("""
 
     /* Buttons */
     .stButton > button {
-        background: linear-gradient(90deg, #1e40af 0%, #7c3aed 100%);
+        background: linear-gradient(90deg, #FF6000 0%, #FF8C00 100%);
         color: white;
         font-weight: 600;
         border: none;
         border-radius: 8px;
         padding: 0.75rem 2rem;
         font-size: 1rem;
-        box-shadow: 0 4px 16px rgba(30, 64, 175, 0.4);
+        box-shadow: 0 4px 16px rgba(255, 96, 0, 0.4);
         transition: all 0.3s;
     }
 
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(30, 64, 175, 0.6);
+        box-shadow: 0 6px 20px rgba(255, 96, 0, 0.6);
     }
 
     /* Slider */
@@ -171,7 +173,7 @@ st.markdown("""
 
     /* Spinner */
     .stSpinner > div {
-        border-color: #7c3aed !important;
+        border-color: #FF6000 !important;
     }
 
     /* Hide sidebar completely */
@@ -180,6 +182,16 @@ st.markdown("""
     }
     [data-testid="collapsedControl"] {
         display: none;
+    }
+
+    /* Hide Streamlit header/toolbar */
+    header[data-testid="stHeader"] {
+        display: none;
+    }
+
+    /* Remove white space at top */
+    .main .block-container {
+        padding-top: 2rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -224,13 +236,19 @@ def get_connection():
         return None
 
 def get_user_token():
-    """Get authentication token - uses PAT from environment variable"""
+    """Get authentication token from environment variable"""
     token = os.getenv("DATABRICKS_TOKEN")
+
     if token:
+        # Success message (only show once)
+        if 'auth_message_shown' not in st.session_state:
+            st.success("✓ Authenticated using PAT token")
+            st.session_state.auth_message_shown = True
         return token
-    else:
-        st.error("No DATABRICKS_TOKEN configured.")
-        return None
+
+    st.error("❌ No DATABRICKS_TOKEN configured")
+    st.info("Please ensure DATABRICKS_TOKEN is set in app.yaml")
+    return None
 
 @st.cache_data(ttl=600)
 def query(_token, sql_query):
@@ -245,14 +263,11 @@ def query(_token, sql_query):
         return pd.DataFrame()
 
     try:
-        st.sidebar.write(f"🔍 Using SQL Connector")
-        st.sidebar.write(f"🔍 Host: {hostname}")
-        st.sidebar.write(f"🔍 HTTP Path: {http_path}")
-
         with dbsql.connect(
             server_hostname=hostname,
             http_path=http_path,
-            access_token=_token
+            access_token=_token,
+            _use_arrow_native_complex_types=False
         ) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(sql_query)
@@ -267,15 +282,12 @@ def query(_token, sql_query):
                     except:
                         pass
 
-                st.sidebar.success("✅ Query successful!")
                 return df
 
     except Exception as e:
-        st.error(f"Query failed: {e}")
-        st.sidebar.error(f"❌ Error: {str(e)}")
-        import traceback
-        with st.expander("Full Error"):
-            st.code(traceback.format_exc())
+        error_str = str(e)
+        error_type = type(e).__name__
+        st.error(f"❌ Query failed: {error_type}: {error_str}")
         return pd.DataFrame()
 
 def distance_miles(lat1, lon1, lat2, lon2):
@@ -286,17 +298,18 @@ def distance_miles(lat1, lon1, lat2, lon2):
     return R * 2 * atan2(sqrt(a), sqrt(1-a))
 
 # Header with branding
-st.markdown("""
-<div class="main-header">
-    <div class="logo-title">
-        <div class="lce-logo">LCE</div>
-        <div>
-            <h1>Little Caesars Site Selection Platform</h1>
-            <div class="tagline">Geospatial Intelligence for Strategic Expansion in Massachusetts</div>
-        </div>
+col_logo, col_title = st.columns([1, 9])
+
+with col_logo:
+    st.image("Little-Caesars-man-logo.png", width=140)
+
+with col_title:
+    st.markdown("""
+    <div class="main-header">
+        <h1>LCE Hunger Detection Platform</h1>
+        <div class="tagline">Powered by Databricks</div>
     </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # Tabs
 tab1, tab2, tab3 = st.tabs(["Current Network", "Expansion Candidates", "Network Optimizer"])
@@ -310,40 +323,98 @@ with tab1:
         st.error("Unable to authenticate. Please ensure you're logged in to Databricks.")
         st.stop()
 
-    with st.spinner("Loading store data..."):
-        stores = query(user_token, """
-            SELECT s.store_number, s.city, s.state, s.annual_sales,
-                   e.latitude, e.longitude,
-                   e.population, e.total_poi_count,
-                   e.female_18_to_24, e.male_18_to_24, 
-                   e.female_25_to_29, e.male_25_to_29,
-                   e.female_30_to_34, e.male_30_to_34,
-                   e.income_75000_to_99999, e.income_100000_to_124999,
-                   e.income_125000_to_149999, e.income_150000_to_199999, e.income_200000_or_more,
-                   e.edu_bachelors, e.edu_graduate_professional,
-                   COALESCE(e.total_retail_pois, 0) as poi_count_shop,
-                   COALESCE(e.total_food_drink_pois, 0) as poi_count_amenity,
-                   COALESCE(e.total_leisure_pois, 0) as poi_count_leisure,
-                   COALESCE(e.total_tourism_pois, 0) as poi_count_tourism,
-                   COALESCE(e.total_education_pois, 0) as poi_count_office,
-                   COALESCE(e.total_transportation_pois, 0) as poi_count_public_transport,
-                   r.address, r.zip_code
-            FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
-            JOIN jdub_demo_aws.geo_silver.existing_stores_h3 e
-                ON s.store_number = e.store_number
-            JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
-                ON s.store_number = r.store_number
-        """)
-
-        # Load isochrones separately if needed
-        try:
-            isochrones = query(user_token, """
-                SELECT store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-                FROM jdub_demo_aws.geo_silver.existing_stores_h3
+    # Cache data in session state to avoid re-querying on toggle changes
+    if 'tab1_data_loaded' not in st.session_state:
+        with st.spinner("Loading store data..."):
+            # First, get the base store data
+            stores = query(user_token, """
+                SELECT e.store_number,
+                       COALESCE(e.city, r.city) as city,
+                       COALESCE(e.state, r.state) as state,
+                       e.latitude, e.longitude,
+                       COALESCE(e.population, 0) as population,
+                       COALESCE(e.total_retail_pois, 0) as total_retail_pois,
+                       COALESCE(e.total_food_drink_pois, 0) as total_food_drink_pois,
+                       COALESCE(e.total_leisure_pois, 0) as total_leisure_pois,
+                       COALESCE(e.total_education_pois, 0) as total_education_pois,
+                       COALESCE(e.total_healthcare_pois, 0) as total_healthcare_pois,
+                       COALESCE(e.total_financial_pois, 0) as total_financial_pois,
+                       COALESCE(e.total_tourism_pois, 0) as total_tourism_pois,
+                       COALESCE(e.total_transportation_pois, 0) as total_transportation_pois,
+                       r.address, r.zip_code
+                FROM jdub_demo_aws.geo_silver.existing_stores_h3 e
+                LEFT JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
+                    ON e.store_number = r.store_number
             """)
-        except:
-            # If isochrone query fails, create empty dataframe
-            isochrones = pd.DataFrame()
+
+            # Calculate total POI count
+            if not stores.empty:
+                stores['total_poi_count'] = (
+                    stores['total_retail_pois'] + stores['total_food_drink_pois'] +
+                    stores['total_leisure_pois'] + stores['total_education_pois'] +
+                    stores['total_healthcare_pois'] + stores['total_financial_pois'] +
+                    stores['total_tourism_pois'] + stores['total_transportation_pois']
+                )
+
+            # Load isochrones from isochrones_lce table (generated with OSRM)
+            try:
+                isochrones = query(user_token, """
+                    SELECT location_id as store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
+                    FROM jdub_demo_aws.geo_silver.isochrones_lce
+                """)
+            except:
+                isochrones = pd.DataFrame()
+
+            # Load convenience store isochrones
+            try:
+                convenience_isochrones = query(user_token, """
+                    SELECT location_id, ST_AsGeoJSON(geometry) as isochrone_geojson
+                    FROM jdub_demo_aws.geo_silver.isochrones_convenience
+                """)
+            except:
+                convenience_isochrones = pd.DataFrame()
+
+            # Load convenience store locations
+            try:
+                convenience_stores = query(user_token, """
+                    SELECT name, latitude, longitude, poi_category, poi_subcategory
+                    FROM jdub_demo_aws.geo_silver.pois_convenience
+                """)
+            except:
+                convenience_stores = pd.DataFrame()
+
+            # Load competitor locations
+            try:
+                competitors = query(user_token, """
+                    SELECT name, latitude, longitude, poi_category, poi_subcategory
+                    FROM jdub_demo_aws.geo_silver.pois_competitors
+                """)
+            except:
+                competitors = pd.DataFrame()
+
+            # Load MA boundary
+            ma_boundary = query(user_token, """
+                SELECT ST_AsGeoJSON(geometry) as geometry_geojson
+                FROM jdub_demo_aws.geo_bronze.census_states
+                WHERE state_abbr = 'MA'
+            """)
+
+            # Store in session state
+            st.session_state.tab1_stores = stores
+            st.session_state.tab1_isochrones = isochrones
+            st.session_state.tab1_convenience_isochrones = convenience_isochrones
+            st.session_state.tab1_convenience_stores = convenience_stores
+            st.session_state.tab1_competitors = competitors
+            st.session_state.tab1_ma_boundary = ma_boundary
+            st.session_state.tab1_data_loaded = True
+    else:
+        # Use cached data
+        stores = st.session_state.tab1_stores
+        isochrones = st.session_state.tab1_isochrones
+        convenience_isochrones = st.session_state.tab1_convenience_isochrones
+        convenience_stores = st.session_state.tab1_convenience_stores
+        competitors = st.session_state.tab1_competitors
+        ma_boundary = st.session_state.tab1_ma_boundary
 
     if not stores.empty:
         # Merge isochrone data if available
@@ -352,25 +423,18 @@ with tab1:
         else:
             stores['isochrone_geojson'] = None
 
-        try:
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Stores", f"{len(stores):,}")
-            col2.metric("Total Annual Sales", f"${stores['annual_sales'].sum():,.0f}")
-            col3.metric("Average Sales per Store", f"${stores['annual_sales'].mean():,.0f}")
-            col4.metric("Avg Population per Trade Area", f"{stores['population'].mean():,.0f}")
-        except Exception as e:
-            st.error(f"Error displaying metrics: {e}")
-            with st.expander("Debug Data"):
-                st.write("Data types:", stores.dtypes)
-                st.write("First few rows:", stores.head())
-            # Continue to show data table anyway
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Stores", f"{len(stores):,}")
+        col2.metric("Avg Population per Trade Area", f"{stores['population'].mean():,.0f}")
+        col3.metric("Avg POI Count per Trade Area", f"{stores['total_poi_count'].mean():,.0f}")
 
-        # Load MA state boundary
-        ma_boundary = query(user_token, """
-            SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM jdub_demo_aws.geo_bronze.census_states
-            WHERE state_abbr = 'MA'
-        """)
+        # Get toggle state from session state
+        if 'show_trade_areas' not in st.session_state:
+            st.session_state.show_trade_areas = False
+        if 'show_convenience' not in st.session_state:
+            st.session_state.show_convenience = False
+        if 'show_competitors' not in st.session_state:
+            st.session_state.show_competitors = False
 
         # Create 2-column layout: map (left) + table (right)
         map_col, table_col = st.columns([2, 1])
@@ -378,12 +442,12 @@ with tab1:
         with map_col:
             st.subheader("Store Locations")
 
-            # Get toggle state from session state
-            if 'show_trade_areas' not in st.session_state:
-                st.session_state.show_trade_areas = False
+            # Create base map centered on stores
+            center_lat = stores['latitude'].mean()
+            center_lon = stores['longitude'].mean()
 
             m = folium.Map(
-                location=[stores['latitude'].mean(), stores['longitude'].mean()],
+                location=[center_lat, center_lon],
                 zoom_start=9,
                 tiles='https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
                 attr='CartoDB'
@@ -394,7 +458,7 @@ with tab1:
                 folium.GeoJson(
                     json.loads(ma_boundary.iloc[0]['geometry_geojson']),
                     style_function=lambda x: {
-                        'color': '#6366f1',
+                        'color': '#FF6000',
                         'weight': 2,
                         'fillOpacity': 0,
                         'dashArray': '5, 5'
@@ -402,7 +466,7 @@ with tab1:
                     name='Massachusetts Boundary'
                 ).add_to(m)
 
-            # Add isochrones if toggle is on
+            # Add LCE trade area isochrones if toggle is on
             if st.session_state.show_trade_areas and 'isochrone_geojson' in stores.columns:
                 for _, store in stores.iterrows():
                     if pd.notna(store.get('isochrone_geojson')) and store.get('isochrone_geojson'):
@@ -410,14 +474,87 @@ with tab1:
                             folium.GeoJson(
                                 json.loads(store['isochrone_geojson']),
                                 style_function=lambda x: {
-                                    'color': '#3b82f6',
+                                    'color': '#FF8C00',
                                     'weight': 1,
                                     'fillOpacity': 0.1,
+                                    'fillColor': '#FF8C00'
+                                }
+                            ).add_to(m)
+                        except:
+                            pass
+
+            # Add convenience store trade areas if toggle is on
+            if st.session_state.show_convenience and not convenience_isochrones.empty:
+                for _, conv in convenience_isochrones.iterrows():
+                    if pd.notna(conv.get('isochrone_geojson')) and conv.get('isochrone_geojson'):
+                        try:
+                            folium.GeoJson(
+                                json.loads(conv['isochrone_geojson']),
+                                style_function=lambda x: {
+                                    'color': '#3b82f6',
+                                    'weight': 1,
+                                    'fillOpacity': 0.08,
                                     'fillColor': '#3b82f6'
                                 }
                             ).add_to(m)
                         except:
                             pass
+
+            # Add convenience store markers with clustering if toggle is on (BLUE)
+            if st.session_state.show_convenience and not convenience_stores.empty:
+                conv_cluster = MarkerCluster(
+                    name='Convenience Stores',
+                    icon_create_function="""
+                    function(cluster) {
+                        return L.divIcon({
+                            html: '<div style="background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: Inter, sans-serif; border: 3px solid #2563eb; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);"><span>' + cluster.getChildCount() + '</span></div>',
+                            className: 'custom-cluster-icon',
+                            iconSize: L.point(40, 40)
+                        });
+                    }
+                    """
+                ).add_to(m)
+                for _, conv in convenience_stores.iterrows():
+                    folium.CircleMarker(
+                        location=[conv['latitude'], conv['longitude']],
+                        radius=5,
+                        popup=f"<b>{conv['name']}</b><br/>{conv.get('poi_subcategory', 'Convenience Store')}",
+                        tooltip=f"Convenience: {conv['name']}",
+                        color='#3b82f6',
+                        fill=True,
+                        fillColor='#60a5fa',
+                        fillOpacity=0.7,
+                        weight=2
+                    ).add_to(conv_cluster)
+
+            # Add competitor markers if toggle is on (NO clustering)
+            if st.session_state.show_competitors and not competitors.empty:
+                for _, comp in competitors.iterrows():
+                    folium.CircleMarker(
+                        location=[comp['latitude'], comp['longitude']],
+                        radius=5,
+                        popup=f"<b>{comp['name']}</b><br/>{comp.get('poi_subcategory', 'Pizza')}",
+                        tooltip=f"Competitor: {comp['name']}",
+                        color='#dc2626',
+                        fill=True,
+                        fillColor='#ef4444',
+                        fillOpacity=0.7,
+                        weight=2
+                    ).add_to(m)
+
+            # Add LCE store markers with clustering (GREEN)
+            lce_cluster = MarkerCluster(
+                name='LCE Stores',
+                icon_create_function="""
+                function(cluster) {
+                    return L.divIcon({
+                        html: '<div style="background: linear-gradient(135deg, #10b981 0%, #34d399 100%); color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: Inter, sans-serif; border: 3px solid #059669; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);"><span>' + cluster.getChildCount() + '</span></div>',
+                        className: 'custom-cluster-icon',
+                        iconSize: L.point(40, 40)
+                    });
+                }
+                """
+            ).add_to(m)
 
             for _, store in stores.iterrows():
                 # Enhanced tooltip with all requested fields
@@ -427,7 +564,6 @@ with tab1:
                     {store['address']}<br/>
                     {store['city']}, {store['state']} {store['zip_code']}<br/>
                     <hr style="margin: 5px 0;">
-                    <b>Annual Sales:</b> ${store['annual_sales']:,.0f}<br/>
                     <b>Population:</b> {store['population']:,.0f}<br/>
                     <b>POI Count:</b> {store['total_poi_count']:,.0f}
                 </div>
@@ -443,87 +579,125 @@ with tab1:
                     fillColor='#34d399',
                     fillOpacity=0.8,
                     weight=2
-                ).add_to(m)
-            st_folium(m, width=None, height=500)
+                ).add_to(lce_cluster)
 
-            # Toggle below the map
-            st.session_state.show_trade_areas = st.checkbox("Show Trade Areas", value=st.session_state.show_trade_areas)
+            # Display the map
+            st_folium(m, use_container_width=True, height=500)
+
+            # Toggles below the map
+            col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+            with col_t1:
+                show_trade_areas = st.checkbox("Show LCE Trade Areas", value=st.session_state.show_trade_areas, key="toggle_trade_areas")
+                if show_trade_areas != st.session_state.show_trade_areas:
+                    st.session_state.show_trade_areas = show_trade_areas
+                    st.rerun()
+            with col_t2:
+                show_convenience = st.checkbox("Show Convenience Stores", value=st.session_state.show_convenience, key="toggle_convenience")
+                if show_convenience != st.session_state.show_convenience:
+                    st.session_state.show_convenience = show_convenience
+                    st.rerun()
+            with col_t3:
+                show_competitors = st.checkbox("Show Competitors", value=st.session_state.show_competitors, key="toggle_competitors")
+                if show_competitors != st.session_state.show_competitors:
+                    st.session_state.show_competitors = show_competitors
+                    st.rerun()
+            with col_t4:
+                if st.button("🔄 Refresh Data", key="refresh_tab1"):
+                    st.session_state.tab1_data_loaded = False
+                    st.rerun()
 
         with table_col:
-            st.subheader("Locations by Sales")
-            # Create a cleaner table display with column config
-            sales_df = stores[['store_number', 'city', 'annual_sales']].copy()
-            sales_df = sales_df.sort_values('annual_sales', ascending=False).reset_index(drop=True)
+            st.markdown("""
+            <h3 style='color: #FF6000; margin-bottom: 1rem; font-weight: 600;'>
+                Top Locations by Trade Area
+            </h3>
+            """, unsafe_allow_html=True)
 
-            st.dataframe(
-                sales_df,
-                column_config={
-                    "store_number": st.column_config.TextColumn("Store #", width="small"),
-                    "city": st.column_config.TextColumn("City", width="medium"),
-                    "annual_sales": st.column_config.NumberColumn(
-                        "Annual Sales",
-                        format="$%d",
-                        width="medium"
-                    ),
-                },
-                hide_index=True,
-                use_container_width=True,
-                height=500
+            # Create a styled table display
+            stores_df = stores[['store_number', 'city', 'population', 'total_poi_count']].copy()
+            stores_df = stores_df.sort_values('population', ascending=False).reset_index(drop=True)
+            stores_df = stores_df.head(20)  # Top 20
+
+            # Format values for display
+            formatted_population = ['{:,.0f}'.format(val) for val in stores_df['population']]
+            formatted_poi = ['{:,.0f}'.format(val) for val in stores_df['total_poi_count']]
+
+            # Create Plotly table with Little Caesars branding
+            fig = go.Figure(data=[go.Table(
+                header=dict(
+                    values=['<b>Store #</b>', '<b>City</b>', '<b>Population</b>', '<b>POI Count</b>'],
+                    fill_color='#FF6000',  # Little Caesars orange
+                    align='left',
+                    font=dict(color='white', size=13, family='Inter'),
+                    height=35
+                ),
+                cells=dict(
+                    values=[
+                        stores_df['store_number'],
+                        stores_df['city'],
+                        formatted_population,
+                        formatted_poi
+                    ],
+                    fill_color=[['#2d2d2d', '#1a1a1a'] * len(stores_df)],  # Alternating dark rows
+                    align='left',
+                    font=dict(color='#f1f5f9', size=12, family='Inter'),
+                    height=32
+                )
+            )])
+
+            fig.update_layout(
+                height=500,
+                margin=dict(l=0, r=0, t=0, b=0),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
             )
 
-        st.markdown("<h3 style='text-align: center; margin-bottom: 1rem;'>Sales Performance Drivers</h3>", unsafe_allow_html=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Calculate derived metrics based on CARTO features
-        stores['young_adults'] = (stores['male_18_to_24'] + stores['female_18_to_24'] + 
-                                  stores['male_25_to_29'] + stores['female_25_to_29'] +
-                                  stores['male_30_to_34'] + stores['female_30_to_34'])
-        stores['high_income'] = (stores['income_75000_to_99999'] + stores['income_100000_to_124999'] + 
-                                 stores['income_125000_to_149999'] + stores['income_150000_to_199999'] + 
-                                 stores['income_200000_or_more'])
-        stores['higher_education'] = stores['edu_bachelors'] + stores['edu_graduate_professional']
+        st.markdown("<h3 style='text-align: center; margin-bottom: 1rem;'>Trade Area Metrics</h3>", unsafe_allow_html=True)
 
-        # Calculate values
-        young_adults_val = f"{stores['young_adults'].mean():,.0f}"
-        high_income_val = f"{stores['high_income'].mean():,.0f}"
-        higher_ed_val = f"{stores['higher_education'].mean():,.0f}"
-        poi_val = f"{stores['total_poi_count'].mean():,.0f}"
+        # Calculate values for POI breakdown
+        retail_val = f"{stores['total_retail_pois'].mean():,.0f}"
+        food_val = f"{stores['total_food_drink_pois'].mean():,.0f}"
+        leisure_val = f"{stores['total_leisure_pois'].mean():,.0f}"
+        total_poi_val = f"{stores['total_poi_count'].mean():,.0f}"
 
-        # Clean card-based metrics (4 cards, no competitors)
+        # Clean card-based metrics (4 cards showing POI breakdown)
         driver_cols = st.columns(4)
 
         with driver_cols[0]:
             st.markdown(f"""
-            <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Young Adults (18-34)</div>
-                <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg People per Trade Area</div>
-                <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{young_adults_val}</div>
+            <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 24px; border-left: 4px solid #FF6000; height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);">
+                <div style="color: #999999; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Retail POIs</div>
+                <div style="color: #666666; font-size: 11px; margin-bottom: 12px;">Avg per Trade Area</div>
+                <div style="color: #FF6000; font-size: 36px; font-weight: 700;">{retail_val}</div>
             </div>
             """, unsafe_allow_html=True)
 
         with driver_cols[1]:
             st.markdown(f"""
-            <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">High Income HH ($75k+)</div>
-                <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg Households per Trade Area</div>
-                <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{high_income_val}</div>
+            <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 24px; border-left: 4px solid #FF6000; height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);">
+                <div style="color: #999999; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Food & Drink POIs</div>
+                <div style="color: #666666; font-size: 11px; margin-bottom: 12px;">Avg per Trade Area</div>
+                <div style="color: #FF6000; font-size: 36px; font-weight: 700;">{food_val}</div>
             </div>
             """, unsafe_allow_html=True)
 
         with driver_cols[2]:
             st.markdown(f"""
-            <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Higher Education</div>
-                <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg People per Trade Area</div>
-                <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{higher_ed_val}</div>
+            <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 24px; border-left: 4px solid #FF6000; height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);">
+                <div style="color: #999999; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Leisure POIs</div>
+                <div style="color: #666666; font-size: 11px; margin-bottom: 12px;">Avg per Trade Area</div>
+                <div style="color: #FF6000; font-size: 36px; font-weight: 700;">{leisure_val}</div>
             </div>
             """, unsafe_allow_html=True)
 
         with driver_cols[3]:
             st.markdown(f"""
-            <div style="background: #1e293b; border-radius: 12px; padding: 24px; border-left: 4px solid #3b82f6; height: 160px; display: flex; flex-direction: column; justify-content: center;">
-                <div style="color: #94a3b8; font-size: 14px; font-weight: 600; text-transform: uppercase;">Points of Interest</div>
-                <div style="color: #64748b; font-size: 11px; margin-bottom: 12px;">Avg Count per Trade Area</div>
-                <div style="color: #ffffff; font-size: 36px; font-weight: 700;">{poi_val}</div>
+            <div style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%); border-radius: 12px; padding: 24px; border-left: 4px solid #FF6000; height: 160px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);">
+                <div style="color: #999999; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total POIs</div>
+                <div style="color: #666666; font-size: 11px; margin-bottom: 12px;">Avg per Trade Area</div>
+                <div style="color: #FF6000; font-size: 36px; font-weight: 700;">{total_poi_val}</div>
             </div>
             """, unsafe_allow_html=True)
     else:
@@ -536,12 +710,66 @@ with tab2:
         st.error("Unable to authenticate. Please ensure you're logged in to Databricks.")
         st.stop()
 
-    with st.spinner("Loading candidate data..."):
-        candidates = query(user_token, """
-            SELECT h3_cell_id as store_number, 'TBD' as city, 'MA' as state, latitude, longitude,
-                   predicted_annual_sales, population, total_poi as total_poi_count
-            FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced
-        """)
+    # Cache data in session state to avoid re-querying on toggle changes
+    if 'tab2_data_loaded' not in st.session_state:
+        with st.spinner("Loading candidate data..."):
+            candidates = query(user_token, """
+                SELECT h3_cell_id as store_number, 'TBD' as city, 'MA' as state, latitude, longitude,
+                       predicted_annual_sales, population, total_poi as total_poi_count
+                FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced
+            """)
+
+            # Load MA boundary
+            ma_boundary = query(user_token, """
+                SELECT ST_AsGeoJSON(geometry) as geometry_geojson
+                FROM jdub_demo_aws.geo_bronze.census_states
+                WHERE state_abbr = 'MA'
+            """)
+
+            # Load current stores
+            current_stores = query(user_token, """
+                SELECT e.store_number,
+                       COALESCE(e.city, r.city) as city,
+                       COALESCE(e.state, r.state) as state,
+                       e.latitude, e.longitude,
+                       e.population,
+                       r.address, r.zip_code
+                FROM jdub_demo_aws.geo_silver.existing_stores_h3 e
+                LEFT JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
+                    ON e.store_number = r.store_number
+            """)
+
+            # Load convenience and competitor data
+            try:
+                convenience_stores_tab2 = query(user_token, """
+                    SELECT name, latitude, longitude, poi_category, poi_subcategory
+                    FROM jdub_demo_aws.geo_silver.pois_convenience
+                """)
+            except:
+                convenience_stores_tab2 = pd.DataFrame()
+
+            try:
+                competitors_tab2 = query(user_token, """
+                    SELECT name, latitude, longitude, poi_category, poi_subcategory
+                    FROM jdub_demo_aws.geo_silver.pois_competitors
+                """)
+            except:
+                competitors_tab2 = pd.DataFrame()
+
+            # Store in session state
+            st.session_state.tab2_candidates = candidates
+            st.session_state.tab2_ma_boundary = ma_boundary
+            st.session_state.tab2_current_stores = current_stores
+            st.session_state.tab2_convenience_stores = convenience_stores_tab2
+            st.session_state.tab2_competitors = competitors_tab2
+            st.session_state.tab2_data_loaded = True
+    else:
+        # Use cached data
+        candidates = st.session_state.tab2_candidates
+        ma_boundary = st.session_state.tab2_ma_boundary
+        current_stores = st.session_state.tab2_current_stores
+        convenience_stores_tab2 = st.session_state.tab2_convenience_stores
+        competitors_tab2 = st.session_state.tab2_competitors
 
     if not candidates.empty:
         # Create 2-column layout: metrics (left) + filters (right)
@@ -581,25 +809,40 @@ with tab2:
         st.markdown("""
         <div style="background: #1e293b; padding: 12px; border-radius: 8px; margin-bottom: 16px;">
             <div style="font-weight: 600; margin-bottom: 8px; color: #f1f5f9;">Map Legend</div>
-            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div style="width: 12px; height: 12px; border-radius: 50%; background: #34d399; border: 2px solid #10b981;"></div>
-                    <span style="color: #e2e8f0; font-size: 14px;">Current Little Caesars Locations</span>
+                    <span style="color: #e2e8f0; font-size: 13px;">Current LCE</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #fbbf24; border: 2px solid #f59e0b;"></div>
+                    <span style="color: #e2e8f0; font-size: 13px;">Expansion Candidates</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 3px; background: #FF8C00; opacity: 0.3;"></div>
+                    <span style="color: #e2e8f0; font-size: 13px;">LCE Trade Areas</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 20px; height: 3px; background: #3b82f6; opacity: 0.3;"></div>
+                    <span style="color: #e2e8f0; font-size: 13px;">Convenience Trade Areas</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <div style="width: 12px; height: 12px; border-radius: 50%; background: #60a5fa; border: 2px solid #3b82f6;"></div>
-                    <span style="color: #e2e8f0; font-size: 14px;">Expansion Candidates</span>
+                    <span style="color: #e2e8f0; font-size: 13px;">Convenience (Toggle)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444; border: 2px solid #dc2626;"></div>
+                    <span style="color: #e2e8f0; font-size: 13px;">Competitors (Toggle)</span>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # Load MA state boundary
-        ma_boundary = query(user_token, """
-            SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-            FROM jdub_demo_aws.geo_bronze.census_states
-            WHERE state_abbr = 'MA'
-        """)
+        # Initialize session state for Tab 2 toggles
+        if 'show_convenience_tab2' not in st.session_state:
+            st.session_state.show_convenience_tab2 = False
+        if 'show_competitors_tab2' not in st.session_state:
+            st.session_state.show_competitors_tab2 = False
 
         m = folium.Map(
             location=[filtered['latitude'].mean(), filtered['longitude'].mean()],
@@ -613,7 +856,7 @@ with tab2:
             folium.GeoJson(
                 json.loads(ma_boundary.iloc[0]['geometry_geojson']),
                 style_function=lambda x: {
-                    'color': '#6366f1',
+                    'color': '#FF6000',
                     'weight': 2,
                     'fillOpacity': 0,
                     'dashArray': '5, 5'
@@ -621,41 +864,126 @@ with tab2:
                 name='Massachusetts Boundary'
             ).add_to(m)
 
-        # Add current Little Caesars locations (always shown)
-        current_stores = query(user_token, """
-            SELECT s.store_number, s.city, s.state, s.annual_sales,
-                   e.latitude, e.longitude,
-                   r.address, r.zip_code
-            FROM jdub_demo_aws.geo_gold.lce_stores_with_sales s
-            JOIN jdub_demo_aws.geo_silver.existing_stores_h3 e
-                ON s.store_number = e.store_number
-            JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
-                ON s.store_number = r.store_number
-        """)
-        if not current_stores.empty:
-                for _, store in current_stores.iterrows():
-                    tooltip_text = f"""
-                    <div style="font-family: Arial; font-size: 12px;">
-                        <b>Current Store {store['store_number']}</b><br/>
-                        {store['address']}<br/>
-                        {store['city']}, {store['state']} {store['zip_code']}<br/>
-                        <hr style="margin: 5px 0;">
-                        <b>Annual Sales:</b> ${store['annual_sales']:,.0f}
-                    </div>
-                    """
-                    folium.CircleMarker(
-                        location=[store['latitude'], store['longitude']],
-                        radius=6,
-                        popup=tooltip_text,
-                        tooltip=tooltip_text,
-                        color='#10b981',
-                        fill=True,
-                        fillColor='#34d399',
-                        fillOpacity=0.8,
-                        weight=2
-                    ).add_to(m)
+        # Add LCE trade area isochrones if available
+        if 'tab1_isochrones' in st.session_state and not st.session_state.tab1_isochrones.empty:
+            for _, iso in st.session_state.tab1_isochrones.iterrows():
+                if pd.notna(iso.get('isochrone_geojson')) and iso.get('isochrone_geojson'):
+                    try:
+                        folium.GeoJson(
+                            json.loads(iso['isochrone_geojson']),
+                            style_function=lambda x: {
+                                'color': '#FF8C00',
+                                'weight': 1,
+                                'fillOpacity': 0.05,
+                                'fillColor': '#FF8C00'
+                            }
+                        ).add_to(m)
+                    except:
+                        pass
 
-        # Add expansion candidates (blue markers)
+        # Add convenience trade area isochrones if available
+        if 'tab1_convenience_isochrones' in st.session_state and not st.session_state.tab1_convenience_isochrones.empty:
+            for _, iso in st.session_state.tab1_convenience_isochrones.iterrows():
+                if pd.notna(iso.get('isochrone_geojson')) and iso.get('isochrone_geojson'):
+                    try:
+                        folium.GeoJson(
+                            json.loads(iso['isochrone_geojson']),
+                            style_function=lambda x: {
+                                'color': '#3b82f6',
+                                'weight': 1,
+                                'fillOpacity': 0.03,
+                                'fillColor': '#3b82f6'
+                            }
+                        ).add_to(m)
+                    except:
+                        pass
+
+        # Add current Little Caesars locations with clustering (GREEN)
+        if not current_stores.empty:
+            lce_cluster_tab2 = MarkerCluster(
+                name='LCE Stores',
+                options={
+                    'maxClusterRadius': 50,
+                    'iconCreateFunction': '''
+                        function(cluster) {
+                            return L.divIcon({
+                                html: '<div style="background-color: #10b981; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid #059669;"><span>' + cluster.getChildCount() + '</span></div>',
+                                className: 'marker-cluster',
+                                iconSize: L.point(40, 40)
+                            });
+                        }
+                    '''
+                }
+            ).add_to(m)
+
+            for _, store in current_stores.iterrows():
+                tooltip_text = f"""
+                <div style="font-family: Arial; font-size: 12px;">
+                    <b>Current Store {store['store_number']}</b><br/>
+                    {store['address']}<br/>
+                    {store['city']}, {store['state']} {store['zip_code']}<br/>
+                    <hr style="margin: 5px 0;">
+                    <b>Population:</b> {store['population']:,.0f}
+                </div>
+                """
+                folium.CircleMarker(
+                    location=[store['latitude'], store['longitude']],
+                    radius=6,
+                    popup=tooltip_text,
+                    tooltip=tooltip_text,
+                    color='#10b981',
+                    fill=True,
+                    fillColor='#34d399',
+                    fillOpacity=0.8,
+                    weight=2
+                ).add_to(lce_cluster_tab2)
+
+        # Add convenience store markers with clustering if toggle is on (BLUE)
+        if st.session_state.show_convenience_tab2 and not convenience_stores_tab2.empty:
+            conv_cluster_tab2 = MarkerCluster(
+                name='Convenience Stores',
+                options={
+                    'maxClusterRadius': 50,
+                    'iconCreateFunction': '''
+                        function(cluster) {
+                            return L.divIcon({
+                                html: '<div style="background-color: #3b82f6; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid #2563eb;"><span>' + cluster.getChildCount() + '</span></div>',
+                                className: 'marker-cluster',
+                                iconSize: L.point(40, 40)
+                            });
+                        }
+                    '''
+                }
+            ).add_to(m)
+            for _, conv in convenience_stores_tab2.iterrows():
+                folium.CircleMarker(
+                    location=[conv['latitude'], conv['longitude']],
+                    radius=5,
+                    popup=f"<b>{conv['name']}</b><br/>{conv.get('poi_subcategory', 'Convenience Store')}",
+                    tooltip=f"Convenience: {conv['name']}",
+                    color='#3b82f6',
+                    fill=True,
+                    fillColor='#60a5fa',
+                    fillOpacity=0.7,
+                    weight=2
+                ).add_to(conv_cluster_tab2)
+
+        # Add competitor markers if toggle is on (NO clustering)
+        if st.session_state.show_competitors_tab2 and not competitors_tab2.empty:
+            for _, comp in competitors_tab2.iterrows():
+                folium.CircleMarker(
+                    location=[comp['latitude'], comp['longitude']],
+                    radius=5,
+                    popup=f"<b>{comp['name']}</b><br/>{comp.get('poi_subcategory', 'Pizza')}",
+                    tooltip=f"Competitor: {comp['name']}",
+                    color='#dc2626',
+                    fill=True,
+                    fillColor='#ef4444',
+                    fillOpacity=0.7,
+                    weight=2
+                ).add_to(m)
+
+        # Add expansion candidates (gold/orange markers)
         for _, candidate in filtered.iterrows():
             tooltip_text = f"""
             <div style="font-family: Arial; font-size: 12px;">
@@ -670,13 +998,27 @@ with tab2:
                 radius=8,
                 popup=tooltip_text,
                 tooltip=tooltip_text,
-                color='#3b82f6',
+                color='#f59e0b',
                 fill=True,
-                fillColor='#60a5fa',
+                fillColor='#fbbf24',
                 fillOpacity=0.8,
                 weight=2
             ).add_to(m)
-        st_folium(m, width=None, height=500)
+
+        # Use unique key based on toggle states
+        map_key_tab2 = f"tab2_map_{st.session_state.show_convenience_tab2}_{st.session_state.show_competitors_tab2}"
+        st_folium(m, width=None, height=500, key=map_key_tab2)
+
+        # Add toggle checkboxes below the map
+        col_t1, col_t2, col_t3 = st.columns(3)
+        with col_t1:
+            st.session_state.show_convenience_tab2 = st.checkbox("Show Convenience Stores", value=st.session_state.show_convenience_tab2, key="conv_tab2")
+        with col_t2:
+            st.session_state.show_competitors_tab2 = st.checkbox("Show Competitors", value=st.session_state.show_competitors_tab2, key="comp_tab2")
+        with col_t3:
+            if st.button("🔄 Refresh Data", key="refresh_tab2"):
+                st.session_state.tab2_data_loaded = False
+                st.rerun()
 
         # Button below the map
         if st.button(f"Optimize Filtered Locations ({len(filtered)} locations)", type="primary", use_container_width=True):
@@ -815,7 +1157,7 @@ with tab3:
             fig = go.Figure(data=[go.Table(
                 header=dict(
                     values=['<b>Store #</b>', '<b>Predicted Annual Sales</b>', '<b>Trade Area Population</b>'],
-                    fill_color='#1e40af',
+                    fill_color='#FF6000',
                     align='left',
                     font=dict(color='white', size=14, family='Inter')
                 ),
