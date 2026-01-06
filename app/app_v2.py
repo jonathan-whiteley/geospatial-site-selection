@@ -86,24 +86,18 @@ def query(_token, sql_query):
         return pd.DataFrame()
 
 def load_current_network_data(user_token):
-    """Load all data for Current Network mode"""
+    """Load all data for Current Network mode from viz_* gold tables"""
     try:
-        # Simplified query matching the working expansion query
+        # Use viz_existing_stores (gold layer) instead of silver
         stores = query(user_token, """
-            SELECT e.store_number,
-                   COALESCE(e.city, r.city) as city,
-                   COALESCE(e.state, r.state) as state,
-                   e.latitude, e.longitude,
-                   e.population,
-                   r.address, r.zip_code
-            FROM jdub_demo_aws.geo_silver.existing_stores_h3 e
-            LEFT JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
-                ON e.store_number = r.store_number
+            SELECT store_number, city, state, latitude, longitude,
+                   population, poi_count as total_poi_count,
+                   h3_cell_id, geometry_geojson
+            FROM jdub_demo_aws.geo_gold.viz_existing_stores
         """)
 
-        # Add placeholder columns for consistency with UI expectations
-        if not stores.empty:
-            stores['total_poi_count'] = 0
+        # Add placeholder for revenue if not present
+        if not stores.empty and 'annual_revenue' not in stores.columns:
             stores['annual_revenue'] = 0
     except Exception as e:
         stores = pd.DataFrame()
@@ -117,30 +111,35 @@ def load_current_network_data(user_token):
         isochrones = pd.DataFrame()
 
     try:
+        # Use viz_convenience (gold layer) with candidate proximity info
         convenience_isochrones = query(user_token, """
-            SELECT location_id, ST_AsGeoJSON(geometry) as isochrone_geojson
-            FROM jdub_demo_aws.geo_silver.isochrones_convenience
+            SELECT id as location_id, geometry_geojson as isochrone_geojson,
+                   candidate_count_in_isochrone, total_candidate_sales_in_isochrone
+            FROM jdub_demo_aws.geo_gold.viz_convenience
         """)
     except Exception as e:
         convenience_isochrones = pd.DataFrame()
 
     try:
-        # Note: location_id not needed as we match by spatial proximity
+        # Use viz_convenience for store info
         convenience_stores = query(user_token, """
-            SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_silver.pois_convenience
+            SELECT name, latitude, longitude, store_type as poi_category
+            FROM jdub_demo_aws.geo_gold.viz_convenience
         """)
     except Exception as e:
         convenience_stores = pd.DataFrame()
 
     try:
+        # Use viz_competitors (gold layer)
         competitors = query(user_token, """
             SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_silver.pois_competitors
+            FROM jdub_demo_aws.geo_gold.viz_competitors
         """)
     except:
         competitors = pd.DataFrame()
 
+    # MA boundary no longer needed - data is pre-filtered via H3 grid membership
+    # But keep for optional map outline display
     ma_boundary = query(user_token, """
         SELECT ST_AsGeoJSON(geometry) as geometry_geojson
         FROM jdub_demo_aws.geo_bronze.census_states
@@ -157,40 +156,60 @@ def load_current_network_data(user_token):
     }
 
 def load_expansion_data(user_token):
-    """Load all data for Expansion Analysis mode"""
+    """Load all data for Expansion Analysis mode from viz_* gold tables
+
+    Enhanced viz_expansion_candidates includes pre-computed:
+    - min_distance_to_existing: Distance to nearest existing store (replaces runtime Haversine)
+    - nearest_existing_store: Store number of nearest existing store
+    - within_convenience_isochrone: Boolean flag (replaces runtime point-in-polygon)
+    - convenience_store_name, convenience_city: Partner info if within isochrone
+    - fulfillment_strategy: 'partner' or 'new_store' (pre-computed recommendation)
+    - quality_tier: 'top_25', 'top_50', 'top_75', 'bottom_25'
+    """
     candidates = query(user_token, """
-        SELECT h3_cell_id as store_number, 'TBD' as city, 'MA' as state, latitude, longitude,
-               predicted_annual_sales, population, total_poi as total_poi_count
-        FROM jdub_demo_aws.geo_gold.expansion_candidates_h3_enhanced
-        WHERE latitude BETWEEN 41.2 AND 42.9
-          AND longitude BETWEEN -73.5 AND -69.9
+        SELECT h3_cell_id as store_number,
+               COALESCE(
+                   CASE
+                       WHEN convenience_city IS NOT NULL THEN convenience_city
+                       WHEN urbanicity = 'urban' THEN 'Boston Metro'
+                       WHEN urbanicity = 'suburban' THEN 'Greater Boston'
+                       ELSE 'Massachusetts'
+                   END,
+                   'Massachusetts'
+               ) as city,
+               'MA' as state,
+               latitude, longitude,
+               predicted_annual_sales, population, total_poi as total_poi_count,
+               min_distance_to_existing, nearest_existing_store,
+               within_convenience_isochrone, convenience_store_name,
+               convenience_city, convenience_drive_time,
+               fulfillment_strategy, quality_tier,
+               center_lat, center_lon, geometry_geojson
+        FROM jdub_demo_aws.geo_gold.viz_expansion_candidates
     """)
 
+    # Use viz_existing_stores (gold layer)
     current_stores = query(user_token, """
-        SELECT e.store_number,
-               COALESCE(e.city, r.city) as city,
-               COALESCE(e.state, r.state) as state,
-               e.latitude, e.longitude,
-               e.population,
-               r.address, r.zip_code
-        FROM jdub_demo_aws.geo_silver.existing_stores_h3 e
-        LEFT JOIN jdub_demo_aws.geo_bronze.lce_locations_mass r
-            ON e.store_number = r.store_number
+        SELECT store_number, city, state, latitude, longitude,
+               population, poi_count as total_poi_count,
+               h3_cell_id, geometry_geojson
+        FROM jdub_demo_aws.geo_gold.viz_existing_stores
     """)
 
     try:
-        # Note: location_id not needed as we match by spatial proximity
+        # Use viz_convenience for store info
         convenience_stores = query(user_token, """
-            SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_silver.pois_convenience
+            SELECT name, latitude, longitude, store_type as poi_category
+            FROM jdub_demo_aws.geo_gold.viz_convenience
         """)
     except Exception as e:
         convenience_stores = pd.DataFrame()
 
     try:
+        # Use viz_competitors (gold layer)
         competitors = query(user_token, """
             SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_silver.pois_competitors
+            FROM jdub_demo_aws.geo_gold.viz_competitors
         """)
     except:
         competitors = pd.DataFrame()
@@ -201,6 +220,32 @@ def load_expansion_data(user_token):
         'convenience_stores': convenience_stores.to_dict('records') if not convenience_stores.empty else [],
         'competitors': competitors.to_dict('records') if not competitors.empty else []
     }
+
+def load_optimization_results(user_token):
+    """Load pre-computed optimization results from viz_optimization_results
+
+    Returns all parameter combinations with their selected H3 cells.
+    The app can then do O(1) lookup instead of O(n²) runtime optimization.
+    """
+    try:
+        results = query(user_token, """
+            SELECT max_stores, min_distance_new, min_distance_existing,
+                   selected_h3_cells, selected_count, total_predicted_sales
+            FROM jdub_demo_aws.geo_gold.viz_optimization_results
+        """)
+        return results.to_dict('records') if not results.empty else []
+    except Exception as e:
+        return []
+
+def load_network_metrics(user_token):
+    """Load pre-computed network metrics from viz_network_metrics (singleton row)"""
+    try:
+        metrics = query(user_token, """
+            SELECT * FROM jdub_demo_aws.geo_gold.viz_network_metrics
+        """)
+        return metrics.to_dict('records')[0] if not metrics.empty else {}
+    except Exception as e:
+        return {}
 
 def distance_miles(lat1, lon1, lat2, lon2):
     """Calculate distance in miles between two coordinates"""
@@ -267,10 +312,16 @@ if 'data_loaded' not in st.session_state:
     if user_token:
         st.session_state.current_network_data = load_current_network_data(user_token)
         st.session_state.expansion_data = load_expansion_data(user_token)
+        # Load pre-computed optimization results for O(1) lookup
+        st.session_state.optimization_results_cache = load_optimization_results(user_token)
+        # Load pre-computed network metrics (singleton aggregates)
+        st.session_state.network_metrics = load_network_metrics(user_token)
         st.session_state.data_loaded = True
     else:
         st.session_state.current_network_data = {}
         st.session_state.expansion_data = {}
+        st.session_state.optimization_results_cache = []
+        st.session_state.network_metrics = {}
         st.session_state.data_loaded = False
 
 # Load logo
@@ -283,6 +334,10 @@ logo_base64 = get_logo_base64()
 # Prepare data for JavaScript
 current_network_json = json.dumps(st.session_state.current_network_data) if st.session_state.data_loaded else "{}"
 expansion_json = json.dumps(st.session_state.expansion_data) if st.session_state.data_loaded else "{}"
+# Pre-computed optimization results for O(1) lookup (replaces O(n²) runtime optimization)
+optimization_cache_json = json.dumps(st.session_state.optimization_results_cache) if st.session_state.data_loaded else "[]"
+# Pre-computed network metrics
+network_metrics_json = json.dumps(st.session_state.network_metrics) if st.session_state.data_loaded else "{}"
 logo_data_uri = f"data:image/png;base64,{logo_base64}" if logo_base64 else ""
 
 html_content = f"""
@@ -497,12 +552,24 @@ html_content = f"""
             font-weight: 500;
         }}
 
-        .number-control input[type="number"] {{
+        .number-control input[type="number"],
+        .number-control select {{
             width: 100%;
             padding: 8px 12px;
             border: 1px solid #E0E7EF;
             border-radius: 6px;
             font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+        }}
+
+        .number-control select {{
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 16px;
+            padding-right: 32px;
         }}
 
         /* Buttons */
@@ -741,6 +808,39 @@ html_content = f"""
             margin: 16px 0;
         }}
 
+        /* Step Indicators */
+        .step-indicator {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+            border-left: 4px solid #F06B38;
+            border-radius: 8px;
+            margin: 20px 0 16px 0;
+        }}
+
+        .step-number {{
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: #F06B38;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }}
+
+        .step-label {{
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
+            letter-spacing: 0.3px;
+        }}
+
         /* Recommendation Section */
         .recommendation-card {{
             background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
@@ -835,7 +935,7 @@ html_content = f"""
         <!-- Sidebar -->
         <div id="sidebar">
             <div class="mode-tabs">
-                <button class="mode-tab active" data-mode="current">Network</button>
+                <button class="mode-tab active" data-mode="current">Existing</button>
                 <button class="mode-tab" data-mode="expansion">Expansion</button>
                 <button class="mode-tab" data-mode="chat">Chat</button>
             </div>
@@ -857,12 +957,16 @@ html_content = f"""
             <div class="map-legend">
                 <h4>Map Legend</h4>
                 <div class="legend-item">
-                    <span class="legend-dot" style="background: #34d399; border-color: #10b981;"></span>
-                    <span>LCE Stores</span>
+                    <span class="legend-dot" style="background: #fbbf24; border-color: #f59e0b;"></span>
+                    <span>Expansion Candidates</span>
                 </div>
                 <div class="legend-item">
-                    <span class="legend-dot" style="background: #fbbf24; border-color: #f59e0b;"></span>
-                    <span>Expansion/Optimized</span>
+                    <span class="legend-dot" style="background: rgba(251, 191, 36, 0.2); border: 1.5px solid #f59e0b;"></span>
+                    <span>H3 Hexagons</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-dot" style="background: #34d399; border-color: #10b981;"></span>
+                    <span>Current Stores</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: #60a5fa; border-color: #3b82f6;"></span>
@@ -895,6 +999,10 @@ html_content = f"""
         // Data from backend
         const currentNetworkData = {current_network_json};
         const expansionData = {expansion_json};
+        // Pre-computed optimization results for O(1) lookup (replaces O(n²) runtime optimization)
+        const optimizationResultsCache = {optimization_cache_json};
+        // Pre-computed network metrics
+        const networkMetrics = {network_metrics_json};
 
         // Application state
         let currentMode = 'current';
@@ -903,6 +1011,12 @@ html_content = f"""
         let filters = {{min_sales: null, max_sales: null, min_population: null, max_population: null}};
         let optimizationParams = {{max_stores: 5, min_dist_new: 3.0, min_dist_existing: 2.0}};
         let optimizationResults = null;
+        // Available parameter grid values (must match what's pre-computed in pipeline)
+        const paramGrid = {{
+            max_stores: [5, 10, 15, 20, 25, 30],
+            min_dist_new: [1.0, 2.0, 3.0, 5.0],
+            min_dist_existing: [1.0, 2.0, 3.0, 5.0]
+        }};
 
         // Initialize map
         function initMap() {{
@@ -1005,7 +1119,7 @@ html_content = f"""
                         <b>Store ${{store.store_number}}</b><br/>
                         ${{store.city}}, ${{store.state}}<br/>
                         <hr style="margin: 5px 0;">
-                        <b>Population:</b> ${{store.population.toLocaleString()}}<br/>
+                        <b>Population:</b> ${{Math.round(store.population).toLocaleString()}}<br/>
                         <b>POI Count:</b> ${{store.total_poi_count.toLocaleString()}}
                     `);
 
@@ -1124,6 +1238,38 @@ html_content = f"""
                     filtered = filtered.filter(c => c.population >= filters.min_population);
                 }}
 
+                // Render H3 hexagons if enabled
+                if (layers.h3_hexagons) {{
+                    filtered.forEach(candidate => {{
+                        if (candidate.geometry_geojson) {{
+                            try {{
+                                const geojson = JSON.parse(candidate.geometry_geojson);
+                                const hexagon = L.geoJSON(geojson, {{
+                                    pane: 'isochrones',
+                                    style: {{
+                                        color: '#f59e0b',
+                                        weight: 1.5,
+                                        fillColor: '#fbbf24',
+                                        fillOpacity: 0.2
+                                    }}
+                                }});
+
+                                hexagon.bindPopup(`
+                                    <b>H3 Cell: ${{candidate.store_number}}</b><br/>
+                                    <b>Predicted Sales:</b> $${{candidate.predicted_annual_sales.toLocaleString()}}<br/>
+                                    <b>Population:</b> ${{Math.round(candidate.population).toLocaleString()}}
+                                `);
+
+                                hexagon.on('click', () => showDetailPanel(candidate));
+                                hexagon.addTo(map);
+                            }} catch (e) {{
+                                console.error('Error rendering H3 hexagon:', e);
+                            }}
+                        }}
+                    }});
+                }}
+
+                // Render centroid markers
                 filtered.forEach(candidate => {{
                     const marker = L.circleMarker([candidate.latitude, candidate.longitude], {{
                         pane: 'markers',
@@ -1137,7 +1283,7 @@ html_content = f"""
                     marker.bindPopup(`
                         <b>Expansion Location ${{candidate.store_number}}</b><br/>
                         <b>Predicted Sales:</b> $${{candidate.predicted_annual_sales.toLocaleString()}}<br/>
-                        <b>Population:</b> ${{candidate.population.toLocaleString()}}
+                        <b>Population:</b> ${{Math.round(candidate.population).toLocaleString()}}
                     `);
 
                     marker.on('click', () => showDetailPanel(candidate));
@@ -1147,6 +1293,38 @@ html_content = f"""
 
             // Add optimized locations if available
             if (optimizationResults) {{
+                // Render H3 hexagons if enabled
+                if (layers.h3_hexagons) {{
+                    optimizationResults.forEach(location => {{
+                        if (location.geometry_geojson) {{
+                            try {{
+                                const geojson = JSON.parse(location.geometry_geojson);
+                                const hexagon = L.geoJSON(geojson, {{
+                                    pane: 'isochrones',
+                                    style: {{
+                                        color: '#f59e0b',
+                                        weight: 2,
+                                        fillColor: '#fbbf24',
+                                        fillOpacity: 0.3
+                                    }}
+                                }});
+
+                                hexagon.bindPopup(`
+                                    <b>Optimized H3 Cell</b><br/>
+                                    <b>Predicted Sales:</b> $${{location.predicted_annual_sales.toLocaleString()}}<br/>
+                                    <b>Population:</b> ${{Math.round(location.population).toLocaleString()}}
+                                `);
+
+                                hexagon.on('click', () => showDetailPanel(location));
+                                hexagon.addTo(map);
+                            }} catch (e) {{
+                                console.error('Error rendering optimized H3 hexagon:', e);
+                            }}
+                        }}
+                    }});
+                }}
+
+                // Render centroid markers
                 optimizationResults.forEach(location => {{
                     const marker = L.circleMarker([location.latitude, location.longitude], {{
                         pane: 'markers',
@@ -1160,7 +1338,7 @@ html_content = f"""
                     marker.bindPopup(`
                         <b>Optimized Location</b><br/>
                         <b>Predicted Sales:</b> $${{location.predicted_annual_sales.toLocaleString()}}<br/>
-                        <b>Population:</b> ${{location.population.toLocaleString()}}
+                        <b>Population:</b> ${{Math.round(location.population).toLocaleString()}}
                     `);
 
                     marker.on('click', () => showDetailPanel(location));
@@ -1204,98 +1382,12 @@ html_content = f"""
         }}
 
 
-        // Point in polygon check (ray casting algorithm)
-        function pointInPolygon(point, polygon) {{
-            let x = point[0], y = point[1];
-            let inside = false;
-
-            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {{
-                let xi = polygon[i][0], yi = polygon[i][1];
-                let xj = polygon[j][0], yj = polygon[j][1];
-
-                let intersect = ((yi > y) !== (yj > y))
-                    && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }}
-
-            return inside;
-        }}
-
-        // Check if candidate is within convenience store isochrone
-        function checkConvenienceStoreProximity(candidate) {{
-            // Use convenience stores from either expansion or current network data
-            const convenienceStores = (expansionData.convenience_stores && expansionData.convenience_stores.length > 0)
-                ? expansionData.convenience_stores
-                : currentNetworkData.convenience_stores;
-
-            if (!currentNetworkData.convenience_isochrones || !convenienceStores) {{
-                return null;
-            }}
-
-            const candidatePoint = [candidate.longitude, candidate.latitude];
-            // Check each convenience store isochrone
-            for (const iso of currentNetworkData.convenience_isochrones) {{
-                if (!iso.isochrone_geojson) continue;
-
-                try {{
-                    const geojson = JSON.parse(iso.isochrone_geojson);
-
-                    // Handle different GeoJSON structures (Polygon vs MultiPolygon)
-                    let polygons = [];
-                    if (geojson.type === 'Polygon') {{
-                        polygons = [geojson.coordinates[0]];
-                    }} else if (geojson.type === 'MultiPolygon') {{
-                        polygons = geojson.coordinates.map(poly => poly[0]);
-                    }} else {{
-                        continue;
-                    }}
-
-                    // Check if point is in any of the polygons
-                    for (let i = 0; i < polygons.length; i++) {{
-                        const polygon = polygons[i];
-
-                        // Calculate bounding box for quick check
-                        let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-                        polygon.forEach(p => {{
-                            minLon = Math.min(minLon, p[0]);
-                            maxLon = Math.max(maxLon, p[0]);
-                            minLat = Math.min(minLat, p[1]);
-                            maxLat = Math.max(maxLat, p[1]);
-                        }});
-
-                        const inBounds = (candidatePoint[0] >= minLon && candidatePoint[0] <= maxLon &&
-                                         candidatePoint[1] >= minLat && candidatePoint[1] <= maxLat);
-
-                        // Only do expensive point-in-polygon if in bounding box
-                        if (inBounds) {{
-                            const isInside = pointInPolygon(candidatePoint, polygon);
-
-                            if (isInside) {{
-                                // Find nearest convenience store to the candidate (within 5 miles)
-                                let nearestStore = null;
-                                let minDist = Infinity;
-
-                                convenienceStores.forEach(store => {{
-                                    const dist = distanceMiles(candidate.latitude, candidate.longitude, store.latitude, store.longitude);
-                                    if (dist < minDist && dist < 5) {{
-                                        minDist = dist;
-                                        nearestStore = store;
-                                    }}
-                                }});
-
-                                if (nearestStore) {{
-                                    return {{ store: nearestStore, distance: minDist }};
-                                }}
-                            }}
-                        }}
-                    }}
-                }} catch (e) {{
-                    // Silently skip malformed isochrones
-                }}
-            }}
-
-            return null;
-        }}
+        // NOTE: pointInPolygon() and checkConvenienceStoreProximity() have been REMOVED
+        // These functions are no longer needed because:
+        // - fulfillment_strategy is now pre-computed in viz_expansion_candidates
+        // - within_convenience_isochrone is now a pre-computed boolean column
+        // - convenience_store_name, convenience_city, convenience_drive_time are pre-computed
+        // This removes ~90 lines of JavaScript and replaces O(n*vertices) computation with O(1) lookup
 
         // Show detail panel
         function showDetailPanel(storeData) {{
@@ -1336,7 +1428,7 @@ html_content = f"""
             detailHTML += `
                 <div class="metric-row">
                     <div class="metric-row-label">Population</div>
-                    <div class="metric-row-value">${{(storeData.population || 0).toLocaleString()}}</div>
+                    <div class="metric-row-value">${{Math.round(storeData.population || 0).toLocaleString()}}</div>
                 </div>
             `;
 
@@ -1352,12 +1444,15 @@ html_content = f"""
 
             detailHTML += '</div>';
 
-            // Fulfillment Recommendation (only for optimized locations in expansion mode)
-            if (storeData.predicted_annual_sales !== undefined && currentMode === 'expansion' && optimizationResults && optimizationResults.length > 0) {{
-                const proximityCheck = checkConvenienceStoreProximity(storeData);
+            // Fulfillment Recommendation (uses pre-computed fulfillment_strategy from pipeline)
+            // This replaces ~75 lines of JavaScript point-in-polygon code with O(1) property read
+            if (storeData.predicted_annual_sales !== undefined && currentMode === 'expansion') {{
+                // Use pre-computed fulfillment_strategy column (replaces runtime checkConvenienceStoreProximity)
+                const strategy = storeData.fulfillment_strategy || 'new_store';
+                const isPartner = strategy === 'partner' || storeData.within_convenience_isochrone;
 
-                if (proximityCheck) {{
-                    // Partner with convenience store
+                if (isPartner) {{
+                    // Partner with convenience store (pre-computed data available)
                     detailHTML += `
                         <div class="panel-section">
                             <div class="recommendation-card partner">
@@ -1371,15 +1466,15 @@ html_content = f"""
                                 <div class="recommendation-details">
                                     <div class="recommendation-detail-row">
                                         <span class="recommendation-detail-label">Partner Store</span>
-                                        <span class="recommendation-detail-value">${{proximityCheck.store.name || '7-Eleven'}}</span>
+                                        <span class="recommendation-detail-value">${{storeData.convenience_store_name || '7-Eleven'}}</span>
                                     </div>
                                     <div class="recommendation-detail-row">
-                                        <span class="recommendation-detail-label">Distance</span>
-                                        <span class="recommendation-detail-value">${{proximityCheck.distance.toFixed(2)}} miles</span>
+                                        <span class="recommendation-detail-label">Location</span>
+                                        <span class="recommendation-detail-value">${{storeData.convenience_city || 'N/A'}}</span>
                                     </div>
                                     <div class="recommendation-detail-row">
                                         <span class="recommendation-detail-label">Drive Time</span>
-                                        <span class="recommendation-detail-value">~5 minutes</span>
+                                        <span class="recommendation-detail-value">${{storeData.convenience_drive_time || 5}} minutes</span>
                                     </div>
                                     <div class="recommendation-detail-row">
                                         <span class="recommendation-detail-label">Strategy</span>
@@ -1390,7 +1485,7 @@ html_content = f"""
                         </div>
                     `;
                 }} else {{
-                    // Open new store
+                    // Open new store (pre-computed nearest store info available)
                     detailHTML += `
                         <div class="panel-section">
                             <div class="recommendation-card">
@@ -1407,8 +1502,12 @@ html_content = f"""
                                         <span class="recommendation-detail-value">New Build</span>
                                     </div>
                                     <div class="recommendation-detail-row">
-                                        <span class="recommendation-detail-label">Market Gap</span>
-                                        <span class="recommendation-detail-value">No nearby partners</span>
+                                        <span class="recommendation-detail-label">Nearest LCE Store</span>
+                                        <span class="recommendation-detail-value">#${{storeData.nearest_existing_store || 'N/A'}}</span>
+                                    </div>
+                                    <div class="recommendation-detail-row">
+                                        <span class="recommendation-detail-label">Distance</span>
+                                        <span class="recommendation-detail-value">${{storeData.min_distance_to_existing ? storeData.min_distance_to_existing.toFixed(1) : 'N/A'}} miles</span>
                                     </div>
                                     <div class="recommendation-detail-row">
                                         <span class="recommendation-detail-label">Opportunity</span>
@@ -1430,67 +1529,105 @@ html_content = f"""
             document.getElementById('detail-panel').classList.remove('open');
         }}
 
+        // Get currently visible candidates (filtered or optimized)
+        function getVisibleCandidates() {{
+            const data = expansionData;
+            if (!data.candidates || data.candidates.length === 0) return [];
+
+            // If optimization is active, return optimized results
+            if (optimizationResults) {{
+                return optimizationResults;
+            }}
+
+            // Otherwise, return filtered candidates
+            let visible = data.candidates;
+
+            // Apply filters
+            if (filters.min_sales) {{
+                visible = visible.filter(c => c.predicted_annual_sales >= filters.min_sales);
+            }}
+            if (filters.min_population) {{
+                visible = visible.filter(c => c.population >= filters.min_population);
+            }}
+
+            return visible;
+        }}
+
         // Update metrics
         function updateMetrics() {{
             const container = document.getElementById('metrics-container');
 
             if (currentMode === 'current') {{
-                const data = currentNetworkData;
-                if (data.stores && data.stores.length > 0) {{
-                    const avgPop = data.stores.reduce((sum, s) => sum + s.population, 0) / data.stores.length;
-                    const avgPOI = data.stores.reduce((sum, s) => sum + s.total_poi_count, 0) / data.stores.length;
+                // Use pre-computed network metrics from viz_network_metrics table
+                const metrics = networkMetrics;
+
+                if (metrics && metrics.total_existing_stores) {{
+                    // Format total market reach (population in millions)
+                    const marketReach = metrics.total_network_population;
+                    const marketReachFormatted = marketReach >= 1000000
+                        ? `${{(marketReach / 1000000).toFixed(1)}}M`
+                        : `${{Math.round(marketReach / 1000).toLocaleString()}}K`;
 
                     container.innerHTML = `
-                        <div class="section-header">Metrics</div>
+                        <div class="section-header">Network Metrics</div>
                         <div class="metrics">
                             <div class="metric-card">
                                 <div class="metric-label">Total Stores</div>
-                                <div class="metric-value">${{data.stores.length}}</div>
+                                <div class="metric-value">${{metrics.total_existing_stores}}</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Avg Population</div>
-                                <div class="metric-value">${{Math.round(avgPop).toLocaleString()}}</div>
+                                <div class="metric-label">Total Market Reach</div>
+                                <div class="metric-value">${{marketReachFormatted}}</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Avg POI Count</div>
-                                <div class="metric-value">${{Math.round(avgPOI).toLocaleString()}}</div>
+                                <div class="metric-label">Avg Store Population</div>
+                                <div class="metric-value">${{Math.round(metrics.avg_store_population).toLocaleString()}}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Avg POIs per Store</div>
+                                <div class="metric-value">${{Math.round(metrics.avg_store_poi).toLocaleString()}}</div>
                             </div>
                         </div>
                     `;
                 }}
             }} else if (currentMode === 'expansion') {{
                 const data = expansionData;
+                const metrics = networkMetrics;
 
-                // Show optimization results metrics if available, otherwise show candidates
-                if (optimizationResults && optimizationResults.length > 0) {{
-                    const totalRevenue = optimizationResults.reduce((sum, r) => sum + r.predicted_annual_sales, 0);
+                if (data.candidates && data.candidates.length > 0) {{
+                    // Get visible candidates (filtered or optimized)
+                    const visibleCandidates = getVisibleCandidates();
 
-                    container.innerHTML = `
-                        <div class="section-header">Metrics</div>
-                        <div class="metrics">
-                            <div class="metric-card">
-                                <div class="metric-label">Optimized Locations</div>
-                                <div class="metric-value">${{optimizationResults.length}}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Total Est. Revenue</div>
-                                <div class="metric-value">$${{Math.round(totalRevenue).toLocaleString()}}</div>
-                            </div>
-                        </div>
-                    `;
-                }} else if (data.candidates && data.candidates.length > 0) {{
-                    const avgSales = data.candidates.reduce((sum, c) => sum + c.predicted_annual_sales, 0) / data.candidates.length;
+                    // Calculate metrics from visible candidates only
+                    const totalRevenue = visibleCandidates.reduce((sum, c) => sum + c.predicted_annual_sales, 0);
+                    const partnershipCount = visibleCandidates.filter(c => c.fulfillment_strategy === 'partner').length;
+
+                    // Calculate median revenue from visible candidates
+                    const salesSorted = visibleCandidates
+                        .map(c => c.predicted_annual_sales)
+                        .sort((a, b) => a - b);
+                    const medianRevenue = salesSorted.length > 0
+                        ? salesSorted[Math.floor(salesSorted.length / 2)]
+                        : 0;
 
                     container.innerHTML = `
-                        <div class="section-header">Metrics</div>
+                        <div class="section-header">Expansion Metrics</div>
                         <div class="metrics">
                             <div class="metric-card">
-                                <div class="metric-label">Candidates</div>
-                                <div class="metric-value">${{data.candidates.length}}</div>
+                                <div class="metric-label">Expansion Candidates</div>
+                                <div class="metric-value">${{visibleCandidates.length}}</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Avg Predicted Sales</div>
-                                <div class="metric-value">$${{Math.round(avgSales).toLocaleString()}}</div>
+                                <div class="metric-label">Total Revenue Potential</div>
+                                <div class="metric-value">$${{(totalRevenue / 1000000).toFixed(1)}}M</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Median Candidate Revenue</div>
+                                <div class="metric-value">$${{Math.round(medianRevenue).toLocaleString()}}</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Partnership Opportunities</div>
+                                <div class="metric-value">${{partnershipCount}}</div>
                             </div>
                         </div>
                     `;
@@ -1558,6 +1695,10 @@ html_content = f"""
                             <label for="layer-candidates">Expansion Candidates</label>
                         </div>
                         <div class="checkbox-control">
+                            <input type="checkbox" id="layer-h3-hexagons" ${{layers.h3_hexagons ? 'checked' : ''}}>
+                            <label for="layer-h3-hexagons">H3 Hexagons</label>
+                        </div>
+                        <div class="checkbox-control">
                             <input type="checkbox" id="layer-current" ${{layers.current_stores !== false ? 'checked' : ''}}>
                             <label for="layer-current">Current Stores</label>
                         </div>
@@ -1573,7 +1714,11 @@ html_content = f"""
 
                     <div class="divider"></div>
 
-                    <div class="section-header">Filters</div>
+                    <div class="step-indicator">
+                        <div class="step-number">1</div>
+                        <div class="step-label">Refine</div>
+                    </div>
+
                     <div class="slider-control">
                         <label for="min-sales">Minimum Annual Sales</label>
                         <input type="range" id="min-sales" min="${{minSales}}" max="${{maxSales}}" value="${{filters.min_sales || minSales}}" step="1000">
@@ -1581,16 +1726,22 @@ html_content = f"""
                     </div>
                     <div class="slider-control">
                         <label for="min-pop">Minimum Population</label>
-                        <input type="range" id="min-pop" min="${{minPop}}" max="${{maxPop}}" value="${{filters.min_population || minPop}}" step="100">
-                        <div class="slider-value">${{(filters.min_population || minPop).toLocaleString()}}</div>
+                        <input type="range" id="min-pop" min="${{Math.round(minPop)}}" max="${{Math.round(maxPop)}}" value="${{Math.round(filters.min_population || minPop)}}" step="100">
+                        <div class="slider-value">${{Math.round(filters.min_population || minPop).toLocaleString()}}</div>
                     </div>
 
                     <div class="divider"></div>
 
-                    <div class="section-header">Optimization</div>
+                    <div class="step-indicator">
+                        <div class="step-number">2</div>
+                        <div class="step-label">Optimize</div>
+                    </div>
+
                     <div class="number-control">
                         <label for="max-stores">Maximum New Stores</label>
-                        <input type="number" id="max-stores" min="1" max="20" value="${{optimizationParams.max_stores}}">
+                        <select id="max-stores">
+                            ${{paramGrid.max_stores.map(val => `<option value="${{val}}" ${{val === optimizationParams.max_stores ? 'selected' : ''}}>${{val}} stores</option>`).join('')}}
+                        </select>
                     </div>
                     <div class="slider-control">
                         <label for="min-dist-new">Min Distance Between New (miles)</label>
@@ -1615,6 +1766,10 @@ html_content = f"""
                     layers.candidates = e.target.checked;
                     renderMap();
                 }});
+                document.getElementById('layer-h3-hexagons').addEventListener('change', e => {{
+                    layers.h3_hexagons = e.target.checked;
+                    renderMap();
+                }});
                 document.getElementById('layer-current').addEventListener('change', e => {{
                     layers.current_stores = e.target.checked;
                     renderMap();
@@ -1635,8 +1790,8 @@ html_content = f"""
                     renderMap();
                 }});
                 document.getElementById('min-pop').addEventListener('input', e => {{
-                    filters.min_population = parseInt(e.target.value);
-                    e.target.nextElementSibling.textContent = filters.min_population.toLocaleString();
+                    filters.min_population = Math.round(parseInt(e.target.value));
+                    e.target.nextElementSibling.textContent = Math.round(filters.min_population).toLocaleString();
                     renderMap();
                 }});
 
@@ -1693,40 +1848,60 @@ html_content = f"""
             }}
         }}
 
-        // JavaScript-based optimization (client-side fallback)
+        // Snap value to nearest available in grid
+        function snapToGrid(value, grid) {{
+            return grid.reduce((prev, curr) =>
+                Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
+            );
+        }}
+
+        // Lookup pre-computed optimization results (O(1) instead of O(n²))
+        // This replaces runOptimizationJS with a simple cache lookup
+        function lookupOptimization(params) {{
+            // Snap parameters to nearest pre-computed values
+            const snappedParams = {{
+                max_stores: snapToGrid(params.max_stores, paramGrid.max_stores),
+                min_dist_new: snapToGrid(params.min_dist_new, paramGrid.min_dist_new),
+                min_dist_existing: snapToGrid(params.min_dist_existing, paramGrid.min_dist_existing)
+            }};
+
+            // O(1) lookup from pre-computed cache
+            const result = optimizationResultsCache.find(r =>
+                r.max_stores === snappedParams.max_stores &&
+                r.min_distance_new === snappedParams.min_dist_new &&
+                r.min_distance_existing === snappedParams.min_dist_existing
+            );
+
+            if (result && result.selected_h3_cells) {{
+                // Parse selected_h3_cells if it's a string (can happen with JSON serialization)
+                let h3Cells = result.selected_h3_cells;
+                if (typeof h3Cells === 'string') {{
+                    try {{
+                        h3Cells = JSON.parse(h3Cells);
+                    }} catch (e) {{
+                        console.error('Failed to parse selected_h3_cells:', e);
+                        h3Cells = [];
+                    }}
+                }}
+
+                // Map H3 cell IDs back to full candidate objects
+                const selected = h3Cells
+                    .map(h3 => expansionData.candidates.find(c => c.store_number === h3))
+                    .filter(Boolean);
+
+                console.log(`Optimization lookup: max=${{snappedParams.max_stores}}, dist_new=${{snappedParams.min_dist_new}}, dist_exist=${{snappedParams.min_dist_existing}} -> ${{selected.length}} stores`);
+                return {{ selected, snappedParams, totalSales: result.total_predicted_sales }};
+            }}
+
+            // Fallback: return empty if no pre-computed result found
+            console.warn('No pre-computed optimization result found for params:', snappedParams);
+            return {{ selected: [], snappedParams, totalSales: 0 }};
+        }}
+
+        // Legacy function for backward compatibility (now uses lookup)
         function runOptimizationJS(candidates, existing, params) {{
-            // Apply filters first
-            let filtered = [...candidates];
-
-            if (filters.min_sales) {{
-                filtered = filtered.filter(c => c.predicted_annual_sales >= filters.min_sales);
-            }}
-            if (filters.min_population) {{
-                filtered = filtered.filter(c => c.population >= filters.min_population);
-            }}
-
-            const selected = [];
-            const sorted = filtered.sort((a, b) => b.predicted_annual_sales - a.predicted_annual_sales);
-
-            for (const candidate of sorted) {{
-                if (selected.length >= params.max_stores) break;
-
-                // Check distance from existing stores
-                const tooCloseExisting = existing.some(store =>
-                    distanceMiles(candidate.latitude, candidate.longitude, store.latitude, store.longitude) < params.min_dist_existing
-                );
-                if (tooCloseExisting) continue;
-
-                // Check distance from already selected
-                const tooCloseSelected = selected.some(s =>
-                    distanceMiles(candidate.latitude, candidate.longitude, s.latitude, s.longitude) < params.min_dist_new
-                );
-                if (tooCloseSelected) continue;
-
-                selected.push(candidate);
-            }}
-
-            return selected;
+            const result = lookupOptimization(params);
+            return result.selected;
         }}
 
         // Calculate distance in miles (Haversine formula)
