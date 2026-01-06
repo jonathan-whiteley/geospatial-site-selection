@@ -350,6 +350,9 @@ html_content = f"""
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
 
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -994,6 +997,8 @@ html_content = f"""
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
     <script>
         // Data from backend
@@ -1007,6 +1012,7 @@ html_content = f"""
         // Application state
         let currentMode = 'current';
         let map = null;
+        let candidateClusterGroup = null; // Marker cluster for expansion candidates
         let layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false}};
         let filters = {{min_sales: null, max_sales: null, min_population: null, max_population: null}};
         let optimizationParams = {{max_stores: 5, min_dist_new: 3.0, min_dist_existing: 2.0}};
@@ -1047,6 +1053,35 @@ html_content = f"""
                     map.removeLayer(layer);
                 }}
             }});
+
+            // Clear cluster group if it exists
+            if (candidateClusterGroup) {{
+                map.removeLayer(candidateClusterGroup);
+                candidateClusterGroup = null;
+            }}
+
+            // Create marker cluster group for expansion candidates (yellow/orange)
+            if (currentMode === 'expansion') {{
+                candidateClusterGroup = L.markerClusterGroup({{
+                    iconCreateFunction: function(cluster) {{
+                        var count = cluster.getChildCount();
+                        var size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
+                        var sizeMap = {{'small': 30, 'medium': 40, 'large': 50}};
+
+                        return L.divIcon({{
+                            html: '<div style="background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); ' +
+                                  'width: ' + sizeMap[size] + 'px; height: ' + sizeMap[size] + 'px; ' +
+                                  'border-radius: 50%; display: flex; align-items: center; justify-content: center; ' +
+                                  'color: white; font-weight: bold; font-size: 14px; ' +
+                                  'box-shadow: 0 3px 8px rgba(245, 158, 11, 0.4), 0 0 0 2px rgba(255,255,255,0.3);">' +
+                                  count + '</div>',
+                            className: 'custom-cluster-icon',
+                            iconSize: L.point(sizeMap[size], sizeMap[size])
+                        }});
+                    }}
+                }});
+                map.addLayer(candidateClusterGroup);
+            }}
 
             if (currentMode === 'current') {{
                 renderCurrentNetworkMap();
@@ -1287,7 +1322,7 @@ html_content = f"""
                     `);
 
                     marker.on('click', () => showDetailPanel(candidate));
-                    marker.addTo(map);
+                    candidateClusterGroup.addLayer(marker);
                 }});
             }}
 
@@ -1342,7 +1377,7 @@ html_content = f"""
                     `);
 
                     marker.on('click', () => showDetailPanel(location));
-                    marker.addTo(map);
+                    candidateClusterGroup.addLayer(marker);
                 }});
             }}
 
@@ -1757,6 +1792,7 @@ html_content = f"""
                     <div style="margin-top: 16px;">
                         <button class="btn btn-primary" onclick="runOptimization()">▶️ Run Optimization</button>
                         ${{optimizationResults ? '<button class="btn btn-secondary" style="margin-top: 8px;" onclick="clearOptimization()">Clear Results</button>' : ''}}
+                        <button class="btn btn-secondary" style="margin-top: 8px;" onclick="exportRecommendations()">Download</button>
                     </div>
                 `;
 
@@ -1921,6 +1957,96 @@ html_content = f"""
             optimizationResults = null;
             renderControls();
             renderMap();
+        }}
+
+        // Export recommendations to CSV
+        function exportRecommendations() {{
+            const candidates = getVisibleCandidates();
+
+            if (!candidates || candidates.length === 0) {{
+                alert('No candidates to export. Please adjust filters or run optimization first.');
+                return;
+            }}
+
+            // Define columns to export (excluding quality_tier, geometry_geojson, kring_size, etc.)
+            const columns = [
+                {{ key: 'store_number', label: 'H3 Cell ID' }},
+                {{ key: 'fulfillment_strategy', label: 'Fulfillment Strategy' }},
+                {{ key: 'city', label: 'City' }},
+                {{ key: 'state', label: 'State' }},
+                {{ key: 'predicted_annual_sales', label: 'Predicted Annual Sales' }},
+                {{ key: 'population', label: 'Population' }},
+                {{ key: 'total_poi_count', label: 'Total POI Count' }},
+                {{ key: 'min_distance_to_existing', label: 'Min Distance to Existing (mi)' }},
+                {{ key: 'nearest_existing_store', label: 'Nearest Existing Store' }},
+                {{ key: 'within_convenience_isochrone', label: 'Within Convenience Isochrone' }},
+                {{ key: 'convenience_store_name', label: 'Convenience Store Name' }},
+                {{ key: 'convenience_city', label: 'Convenience City' }},
+                {{ key: 'convenience_drive_time', label: 'Convenience Drive Time (min)' }},
+                {{ key: 'center_lat', label: 'Center Latitude' }},
+                {{ key: 'center_lon', label: 'Center Longitude' }}
+            ];
+
+            // Build CSV header
+            const csvRows = [];
+            csvRows.push(columns.map(col => col.label).join(','));
+
+            // Build CSV rows
+            candidates.forEach(candidate => {{
+                const row = columns.map(col => {{
+                    let value = candidate[col.key];
+
+                    // Handle null/undefined values
+                    if (value === null || value === undefined) {{
+                        return '';
+                    }}
+
+                    // Handle boolean values
+                    if (typeof value === 'boolean') {{
+                        return value ? 'Yes' : 'No';
+                    }}
+
+                    // Handle numbers - round to 2 decimals
+                    if (typeof value === 'number') {{
+                        return col.key.includes('sales') || col.key === 'population' || col.key === 'total_poi_count'
+                            ? Math.round(value)
+                            : value.toFixed(2);
+                    }}
+
+                    // Escape strings that contain commas or quotes
+                    if (typeof value === 'string') {{
+                        if (value.includes(',') || value.includes('"') || value.includes('\\n')) {{
+                            return `"${{value.replace(/"/g, '""')}}"`; // Escape quotes
+                        }}
+                    }}
+
+                    return value;
+                }});
+                csvRows.push(row.join(','));
+            }});
+
+            // Create CSV content
+            const csvContent = csvRows.join('\\n');
+
+            // Create blob and download
+            const blob = new Blob([csvContent], {{ type: 'text/csv;charset=utf-8;' }});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            // Generate filename with timestamp
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = optimizationResults
+                ? `expansion_recommendations_optimized_${{timestamp}}.csv`
+                : `expansion_recommendations_filtered_${{timestamp}}.csv`;
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            console.log(`Exported ${{candidates.length}} candidates to ${{filename}}`);
         }}
 
         // Mode selector (tabs)
