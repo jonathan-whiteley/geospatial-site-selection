@@ -5,7 +5,7 @@ resources:
 
       # PREREQUISITES - Manual Data Upload Required:
       # Before running this pipeline, ensure these tables exist in the bronze schema:
-      # - lce_locations_mass (Little Caesars store locations with lat/lon)
+      # - current_stores_ma (Little Caesars store locations with lat/lon - created by bronze job from lce_locations_raw)
       #
       # Pipeline execution order:
       # 1. Bronze ingestion (census + OSM data)

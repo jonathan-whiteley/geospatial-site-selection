@@ -4,9 +4,8 @@ resources:
       name: "Gold - Predictions & Visualization"
 
       # PREREQUISITES - Required tables from silver schema:
-      # - expansion_candidates_h3 (from candidate_features_h3.ipynb)
+      # - h3_features_clean (from clean_h3_features.ipynb - includes CARTO ingestion)
       # - isochrones_lce (from create_isochrones.ipynb - Valhalla)
-      # - existing_stores_h3 (from aggregate_existing_lce_features.ipynb)
       # - pois_competitors (from clean_pois.ipynb)
       # - isochrones_convenience (from create_isochrones.ipynb - Valhalla)
       #
@@ -38,12 +37,47 @@ resources:
             dependencies:
               - "pyyaml"
               - "keplergl"
+              - "scikit-learn"
+              - "xgboost"
+              - "shap"
+              - "seaborn"
+              - "matplotlib"
 
       tasks:
-        # Expansion prediction with business constraints
-        - task_key: "expansion_prediction"
+        # Aggregate features for current stores (training data for ML model)
+        - task_key: "agg_h3_features_current_stores"
           notebook_task:
-            notebook_path: ../transformations/03_gold/expansion_prediction.ipynb
+            notebook_path: ../transformations/03_gold/agg_h3_features_current_stores.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+
+          environment_key: "Serverless"
+          timeout_seconds: 3600
+
+        # Aggregate features for expansion candidates (prediction input)
+        - task_key: "agg_h3_features_candidates"
+          depends_on:
+            - task_key: "agg_h3_features_current_stores"
+          notebook_task:
+            notebook_path: ../transformations/03_gold/agg_h3_features_candidates.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+
+          environment_key: "Serverless"
+          timeout_seconds: 3600
+
+        # ML model: train on current stores, predict on candidates, rank and finalize
+        - task_key: "predict_candidate_sales"
+          depends_on:
+            - task_key: "agg_h3_features_candidates"
+          notebook_task:
+            notebook_path: ../transformations/03_gold/predict_candidate_sales.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               silver_schema: "${var.silver_schema}"
@@ -52,12 +86,12 @@ resources:
               min_population: "5000"
 
           environment_key: "Serverless"
-          timeout_seconds: 3600
+          timeout_seconds: 5400
 
         # Visualization layer preparation
         - task_key: "viz_layer_prep"
           depends_on:
-            - task_key: "expansion_prediction"
+            - task_key: "predict_candidate_sales"
           notebook_task:
             notebook_path: ../transformations/03_gold/viz_layer_prep.ipynb
             base_parameters:

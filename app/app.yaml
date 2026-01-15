@@ -1,8 +1,25 @@
-command: ["streamlit", "run", "app_v2.py", "--server.port", "8000", "--server.headless", "true"]
+command:
+  [
+    "streamlit",
+    "run",
+    "app_v2.py",
+    "--server.port",
+    "8000",
+    "--server.headless",
+    "true",
+  ]
 env:
   - name: DATABRICKS_SERVER_HOSTNAME
-    value: e2-demo-field-eng.cloud.databricks.com
+    value: fe-vm-jdub-vm-serverless.cloud.databricks.com
   - name: DATABRICKS_HTTP_PATH
-    value: /sql/1.0/warehouses/4b9b953939869799
+    value: /sql/1.0/warehouses/0168e23e24e6ae10
   - name: DATABRICKS_TOKEN
-    valueFrom: secret
+    value_from: secret/databricks_token
+  - name: DATABRICKS_CATALOG
+    value: jdub_demo
+  - name: DATABRICKS_BRONZE_SCHEMA
+    value: geo_bronze
+  - name: DATABRICKS_SILVER_SCHEMA
+    value: geo_silver
+  - name: DATABRICKS_GOLD_SCHEMA
+    value: geo_gold

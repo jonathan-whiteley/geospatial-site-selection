@@ -4,9 +4,9 @@ resources:
       name: "Bronze - Census, POI & LCE Locations"
 
       # PREREQUISITES - Manual Data Upload Required:
-      # Upload raw LCE locations table to: {catalog}.{bronze_schema}.lce_locations_raw
-      # Required columns: LocationKey, Y_Coordinate_Latitude, X_Coordinate_Longitude,
-      #                   Address1, City, State, Zip, StoreStatus
+      # Upload raw locations table to: {catalog}.{bronze_schema}.lce_locations_raw
+      # Required columns: location_id, store_name, latitude, longitude,
+      #                   address, city, state, zip_code
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -37,23 +37,22 @@ resources:
               - "osmium"
 
       tasks:
-        # LCE store locations transformation
-        - task_key: "lce_locations"
+        # Current stores ingestion with sales data (Northeast region: MA, CT, NJ, MD)
+        - task_key: "ingest_current_stores"
           notebook_task:
-            notebook_path: ../transformations/01_bronze/lce_locations.ipynb
+            notebook_path: ../transformations/01_bronze/ingest_current_stores.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               lce_locations_table: "${var.lce_locations_raw_table}"
-              state_filter: "${var.state_filter}"
 
           environment_key: "Serverless"
           timeout_seconds: 600
 
-        # Consolidated census ingestion (boundaries + demographics)
-        - task_key: "census_ingestion"
+        # Census ingestion (boundaries + demographics)
+        - task_key: "ingest_census"
           notebook_task:
-            notebook_path: ../transformations/01_bronze/census.ipynb
+            notebook_path: ../transformations/01_bronze/ingest_census.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
@@ -65,10 +64,10 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
-        # Consolidated POI ingestion (OSM download + extraction)
-        - task_key: "poi_ingestion"
+        # POI ingestion (OSM download + extraction)
+        - task_key: "ingest_pois"
           notebook_task:
-            notebook_path: ../transformations/01_bronze/poi_ingestion.ipynb
+            notebook_path: ../transformations/01_bronze/ingest_pois.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"

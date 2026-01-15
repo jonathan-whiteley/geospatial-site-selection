@@ -4,7 +4,7 @@ resources:
       name: "Silver - Feature Engineering"
 
       # PREREQUISITES - Required tables in bronze schema:
-      # - lce_locations_mass (Little Caesars stores - created by bronze_census_ingestion job)
+      # - current_stores_ne (stores - created by bronze_census_ingestion job)
       # - census_states (state boundaries - created by bronze_census_ingestion job)
       # - raw_pois (from bronze_census_ingestion job)
       #
@@ -56,6 +56,22 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
+        # Clean H3 features with derived columns (includes CARTO ingestion)
+        - task_key: "clean_h3_features"
+          notebook_task:
+            notebook_path: ../transformations/02_silver/clean_h3_features.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              carto_table: "${var.carto_table}"
+              state_filter: "${var.state_filter}"
+
+          environment_key: "Serverless"
+          timeout_seconds: 1800
+          depends_on:
+            - task_key: "clean_pois" # Needs census_states table from bronze
+
         # Generate LCE store isochrones (Valhalla)
         - task_key: "create_isochrones_lce"
           depends_on:
@@ -67,7 +83,7 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
-              lce_locations_table: "${var.lce_locations_table}"
+              current_stores_table: "${var.current_stores_table}"
               input_source: "lce"
               valhalla_url: "https://valhalla1.openstreetmap.de"
 
@@ -91,34 +107,34 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 7200
 
-        # Aggregate features for existing LCE stores
-        - task_key: "aggregate_existing_lce_features"
+        # Generate whitespace (expansion candidate) locations
+        - task_key: "create_whitespace_locations"
           depends_on:
-            - task_key: "create_isochrones_lce"
+            - task_key: "clean_h3_features"
           notebook_task:
-            notebook_path: ../transformations/02_silver/aggregate_existing_lce_features.ipynb
-            base_parameters:
-              catalog: "${var.catalog}"
-              silver_schema: "${var.silver_schema}"
-              gold_schema: "${var.gold_schema}"
-              carto_table: "${var.carto_table}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
-
-          environment_key: "Serverless"
-          timeout_seconds: 3600
-
-        # Generate expansion candidates with variable K-rings
-        - task_key: "candidate_features_h3"
-          depends_on:
-            - task_key: "aggregate_existing_lce_features"
-          notebook_task:
-            notebook_path: ../transformations/02_silver/candidate_features_h3.ipynb
+            notebook_path: ../transformations/02_silver/create_whitespace_locations.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
-              carto_table: "${var.carto_table}"
-              config_path: "${workspace.file_path}/resources/configs/h3_features_config.yml"
+              state_filter: "${var.state_filter}"
+
+          environment_key: "Serverless"
+          timeout_seconds: 3600
+
+        # Generate candidate location isochrones (Valhalla)
+        - task_key: "create_isochrones_candidate"
+          depends_on:
+            - task_key: "create_whitespace_locations"
+          notebook_task:
+            notebook_path: ../transformations/02_silver/create_isochrones.ipynb
+            base_parameters:
+              catalog: "${var.catalog}"
+              bronze_schema: "${var.bronze_schema}"
+              silver_schema: "${var.silver_schema}"
+              gold_schema: "${var.gold_schema}"
+              input_source: "candidate"
+              valhalla_url: "https://valhalla1.openstreetmap.de"
 
           environment_key: "Serverless"
           timeout_seconds: 7200

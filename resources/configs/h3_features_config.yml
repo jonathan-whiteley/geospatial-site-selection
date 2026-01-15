@@ -7,7 +7,7 @@
 carto_source:
   table: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
   h3_column: "h3"
-  state_filter: "MA"  # Filter to Massachusetts only
+  state_filter: "MA,CT,NJ,MD"  # Comma-separated states for sales prediction model training data
   output_table: "h3_features_carto"
 
 # H3 Grid Configuration
@@ -87,7 +87,7 @@ distance:
   # Calculate distance to nearest Little Caesars store
   lce_stores:
     enabled: true
-    table: "jdub_demo_aws.geo_bronze.lce_locations_mass"
+    table: "jdub_demo_aws.geo_bronze.current_stores_ne"
 
 # Performance Configuration
 performance:

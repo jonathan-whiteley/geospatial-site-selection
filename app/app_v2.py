@@ -59,6 +59,7 @@ def query(_token, sql_query):
     http_path = os.getenv("DATABRICKS_HTTP_PATH", "/sql/1.0/warehouses/75fd8278393d07eb")
 
     if not _token:
+        print("ERROR: No authentication token provided")
         return pd.DataFrame()
 
     try:
@@ -83,68 +84,100 @@ def query(_token, sql_query):
 
                 return df
     except Exception as e:
+        print(f"ERROR executing query: {str(e)}")
+        print(f"Query: {sql_query[:200]}...")
         return pd.DataFrame()
 
 def load_current_network_data(user_token):
     """Load all data for Current Network mode from viz_* gold tables"""
+    # Get catalog and schema names from environment variables
+    catalog = os.getenv("DATABRICKS_CATALOG", "jdub_demo")
+    bronze_schema = os.getenv("DATABRICKS_BRONZE_SCHEMA", "geo_bronze")
+    silver_schema = os.getenv("DATABRICKS_SILVER_SCHEMA", "geo_silver")
+    gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
+
+    print(f"\n=== LOADING CURRENT NETWORK DATA ===")
+    print(f"Catalog: {catalog}, Gold: {gold_schema}, Silver: {silver_schema}, Bronze: {bronze_schema}")
+
     try:
         # Use viz_existing_stores (gold layer) instead of silver
-        stores = query(user_token, """
+        print(f"Loading viz_existing_stores from {catalog}.{gold_schema}...")
+        stores = query(user_token, f"""
             SELECT store_number, city, state, latitude, longitude,
                    population, poi_count as total_poi_count,
                    h3_cell_id, geometry_geojson
-            FROM jdub_demo_aws.geo_gold.viz_existing_stores
+            FROM {catalog}.{gold_schema}.viz_existing_stores
         """)
+        print(f"✓ Loaded {len(stores)} existing stores")
 
         # Add placeholder for revenue if not present
         if not stores.empty and 'annual_revenue' not in stores.columns:
             stores['annual_revenue'] = 0
     except Exception as e:
+        print(f"✗ ERROR loading viz_existing_stores: {str(e)}")
         stores = pd.DataFrame()
 
     try:
-        isochrones = query(user_token, """
+        print(f"Loading isochrones_lce from {catalog}.{silver_schema}...")
+        isochrones = query(user_token, f"""
             SELECT location_id as store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-            FROM jdub_demo_aws.geo_silver.isochrones_lce
+            FROM {catalog}.{silver_schema}.isochrones_lce
         """)
-    except:
+        print(f"✓ Loaded {len(isochrones)} LCE isochrones")
+    except Exception as e:
+        print(f"✗ ERROR loading isochrones_lce: {str(e)}")
         isochrones = pd.DataFrame()
 
     try:
         # Use viz_convenience (gold layer) with candidate proximity info
-        convenience_isochrones = query(user_token, """
+        print(f"Loading viz_convenience from {catalog}.{gold_schema}...")
+        convenience_isochrones = query(user_token, f"""
             SELECT id as location_id, geometry_geojson as isochrone_geojson,
                    candidate_count_in_isochrone, total_candidate_sales_in_isochrone
-            FROM jdub_demo_aws.geo_gold.viz_convenience
+            FROM {catalog}.{gold_schema}.viz_convenience
         """)
+        print(f"✓ Loaded {len(convenience_isochrones)} convenience isochrones")
     except Exception as e:
+        print(f"✗ ERROR loading viz_convenience: {str(e)}")
         convenience_isochrones = pd.DataFrame()
 
     try:
         # Use viz_convenience for store info
-        convenience_stores = query(user_token, """
+        print(f"Loading convenience stores from {catalog}.{gold_schema}...")
+        convenience_stores = query(user_token, f"""
             SELECT name, latitude, longitude, store_type as poi_category
-            FROM jdub_demo_aws.geo_gold.viz_convenience
+            FROM {catalog}.{gold_schema}.viz_convenience
         """)
+        print(f"✓ Loaded {len(convenience_stores)} convenience stores")
     except Exception as e:
+        print(f"✗ ERROR loading convenience stores: {str(e)}")
         convenience_stores = pd.DataFrame()
 
     try:
         # Use viz_competitors (gold layer)
-        competitors = query(user_token, """
+        print(f"Loading viz_competitors from {catalog}.{gold_schema}...")
+        competitors = query(user_token, f"""
             SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_gold.viz_competitors
+            FROM {catalog}.{gold_schema}.viz_competitors
         """)
-    except:
+        print(f"✓ Loaded {len(competitors)} competitors")
+    except Exception as e:
+        print(f"✗ ERROR loading viz_competitors: {str(e)}")
         competitors = pd.DataFrame()
 
     # MA boundary no longer needed - data is pre-filtered via H3 grid membership
     # But keep for optional map outline display
-    ma_boundary = query(user_token, """
-        SELECT ST_AsGeoJSON(geometry) as geometry_geojson
-        FROM jdub_demo_aws.geo_bronze.census_states
-        WHERE state_abbr = 'MA'
-    """)
+    try:
+        print(f"Loading MA boundary from {catalog}.{bronze_schema}...")
+        ma_boundary = query(user_token, f"""
+            SELECT ST_AsGeoJSON(geometry) as geometry_geojson
+            FROM {catalog}.{bronze_schema}.census_states
+            WHERE state_abbr = 'MA'
+        """)
+        print(f"✓ Loaded MA boundary")
+    except Exception as e:
+        print(f"✗ ERROR loading MA boundary: {str(e)}")
+        ma_boundary = pd.DataFrame()
 
     return {
         'stores': stores.to_dict('records') if not stores.empty else [],
@@ -166,52 +199,86 @@ def load_expansion_data(user_token):
     - fulfillment_strategy: 'partner' or 'new_store' (pre-computed recommendation)
     - quality_tier: 'top_25', 'top_50', 'top_75', 'bottom_25'
     """
-    candidates = query(user_token, """
-        SELECT h3_cell_id as store_number,
-               COALESCE(
-                   CASE
-                       WHEN convenience_city IS NOT NULL THEN convenience_city
-                       WHEN urbanicity = 'urban' THEN 'Boston Metro'
-                       WHEN urbanicity = 'suburban' THEN 'Greater Boston'
-                       ELSE 'Massachusetts'
-                   END,
-                   'Massachusetts'
-               ) as city,
-               'MA' as state,
-               latitude, longitude,
-               predicted_annual_sales, population, total_poi as total_poi_count,
-               min_distance_to_existing, nearest_existing_store,
-               within_convenience_isochrone, convenience_store_name,
-               convenience_city, convenience_drive_time,
-               fulfillment_strategy, quality_tier,
-               center_lat, center_lon, geometry_geojson
-        FROM jdub_demo_aws.geo_gold.viz_expansion_candidates
-    """)
+    # Get catalog and schema names from environment variables
+    catalog = os.getenv("DATABRICKS_CATALOG", "jdub_demo")
+    gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
+
+    print(f"\n=== LOADING EXPANSION DATA ===")
+    print(f"Catalog: {catalog}, Gold: {gold_schema}")
+
+    try:
+        print(f"Loading viz_expansion_candidates from {catalog}.{gold_schema}...")
+        candidates = query(user_token, f"""
+            SELECT h3_cell_id as store_number,
+                   COALESCE(
+                       CASE
+                           WHEN convenience_city IS NOT NULL THEN convenience_city
+                           WHEN urbanity IN ('Very_High_density_urban', 'High_density_urban') THEN 'Boston Metro'
+                           WHEN urbanity IN ('Medium_density_urban', 'Low_density_urban') THEN 'Greater Boston'
+                           ELSE 'Massachusetts'
+                       END,
+                       'Massachusetts'
+                   ) as city,
+                   'MA' as state,
+                   latitude, longitude,
+                   predicted_annual_sales, population, total_poi_count,
+                   min_distance_to_existing, nearest_existing_store,
+                   within_convenience_isochrone, convenience_store_name,
+                   convenience_city, convenience_drive_time,
+                   fulfillment_strategy, quality_tier,
+                   center_lat, center_lon, geometry_geojson
+            FROM {catalog}.{gold_schema}.viz_expansion_candidates
+        """)
+        print(f"✓ Loaded {len(candidates)} expansion candidates")
+
+        if len(candidates) > 0:
+            print(f"  Columns: {list(candidates.columns)}")
+            print(f"  Sample data (first row):")
+            for key, val in candidates.head(1).to_dict('records')[0].items():
+                if key not in ['geometry_geojson']:  # Skip long geometry strings
+                    print(f"    {key}: {val}")
+    except Exception as e:
+        print(f"✗ ERROR loading viz_expansion_candidates: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        candidates = pd.DataFrame()
 
     # Use viz_existing_stores (gold layer)
-    current_stores = query(user_token, """
-        SELECT store_number, city, state, latitude, longitude,
-               population, poi_count as total_poi_count,
-               h3_cell_id, geometry_geojson
-        FROM jdub_demo_aws.geo_gold.viz_existing_stores
-    """)
+    try:
+        print(f"Loading current_stores from {catalog}.{gold_schema}...")
+        current_stores = query(user_token, f"""
+            SELECT store_number, city, state, latitude, longitude,
+                   population, poi_count as total_poi_count,
+                   h3_cell_id, geometry_geojson
+            FROM {catalog}.{gold_schema}.viz_existing_stores
+        """)
+        print(f"✓ Loaded {len(current_stores)} current stores")
+    except Exception as e:
+        print(f"✗ ERROR loading current stores: {str(e)}")
+        current_stores = pd.DataFrame()
 
     try:
         # Use viz_convenience for store info
-        convenience_stores = query(user_token, """
+        print(f"Loading convenience stores from {catalog}.{gold_schema}...")
+        convenience_stores = query(user_token, f"""
             SELECT name, latitude, longitude, store_type as poi_category
-            FROM jdub_demo_aws.geo_gold.viz_convenience
+            FROM {catalog}.{gold_schema}.viz_convenience
         """)
+        print(f"✓ Loaded {len(convenience_stores)} convenience stores")
     except Exception as e:
+        print(f"✗ ERROR loading convenience stores: {str(e)}")
         convenience_stores = pd.DataFrame()
 
     try:
         # Use viz_competitors (gold layer)
-        competitors = query(user_token, """
+        print(f"Loading competitors from {catalog}.{gold_schema}...")
+        competitors = query(user_token, f"""
             SELECT name, latitude, longitude, poi_category, poi_subcategory
-            FROM jdub_demo_aws.geo_gold.viz_competitors
+            FROM {catalog}.{gold_schema}.viz_competitors
         """)
-    except:
+        print(f"✓ Loaded {len(competitors)} competitors")
+    except Exception as e:
+        print(f"✗ ERROR loading competitors: {str(e)}")
         competitors = pd.DataFrame()
 
     return {
@@ -227,24 +294,38 @@ def load_optimization_results(user_token):
     Returns all parameter combinations with their selected H3 cells.
     The app can then do O(1) lookup instead of O(n²) runtime optimization.
     """
+    # Get catalog and schema names from environment variables
+    catalog = os.getenv("DATABRICKS_CATALOG", "jdub_demo")
+    gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
+
     try:
-        results = query(user_token, """
+        print(f"Loading optimization results from {catalog}.{gold_schema}...")
+        results = query(user_token, f"""
             SELECT max_stores, min_distance_new, min_distance_existing,
                    selected_h3_cells, selected_count, total_predicted_sales
-            FROM jdub_demo_aws.geo_gold.viz_optimization_results
+            FROM {catalog}.{gold_schema}.viz_optimization_results
         """)
+        print(f"✓ Loaded {len(results)} optimization result combinations")
         return results.to_dict('records') if not results.empty else []
     except Exception as e:
+        print(f"✗ ERROR loading optimization results: {str(e)}")
         return []
 
 def load_network_metrics(user_token):
     """Load pre-computed network metrics from viz_network_metrics (singleton row)"""
+    # Get catalog and schema names from environment variables
+    catalog = os.getenv("DATABRICKS_CATALOG", "jdub_demo")
+    gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
+
     try:
-        metrics = query(user_token, """
-            SELECT * FROM jdub_demo_aws.geo_gold.viz_network_metrics
+        print(f"Loading network metrics from {catalog}.{gold_schema}...")
+        metrics = query(user_token, f"""
+            SELECT * FROM {catalog}.{gold_schema}.viz_network_metrics
         """)
+        print(f"✓ Loaded network metrics")
         return metrics.to_dict('records')[0] if not metrics.empty else {}
     except Exception as e:
+        print(f"✗ ERROR loading network metrics: {str(e)}")
         return {}
 
 def distance_miles(lat1, lon1, lat2, lon2):
@@ -308,21 +389,118 @@ def get_logo_base64():
 # ============================================
 user_token = get_user_token()
 
+# Data loading status for UI
+data_status = {
+    'current_network': {'loaded': False, 'error': None, 'counts': {}},
+    'expansion': {'loaded': False, 'error': None, 'counts': {}},
+    'optimization': {'loaded': False, 'error': None, 'count': 0},
+    'metrics': {'loaded': False, 'error': None}
+}
+
 if 'data_loaded' not in st.session_state:
     if user_token:
-        st.session_state.current_network_data = load_current_network_data(user_token)
-        st.session_state.expansion_data = load_expansion_data(user_token)
-        # Load pre-computed optimization results for O(1) lookup
-        st.session_state.optimization_results_cache = load_optimization_results(user_token)
-        # Load pre-computed network metrics (singleton aggregates)
-        st.session_state.network_metrics = load_network_metrics(user_token)
+        # Get catalog and schema for error messages
+        catalog = os.getenv("DATABRICKS_CATALOG", "jdub_demo")
+        gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
+
+        print("\n" + "="*60)
+        print("STARTING DATA LOAD")
+        print("="*60)
+
+        try:
+            st.session_state.current_network_data = load_current_network_data(user_token)
+            data_status['current_network']['loaded'] = True
+            data_status['current_network']['counts'] = {
+                'stores': len(st.session_state.current_network_data.get('stores', [])),
+                'isochrones': len(st.session_state.current_network_data.get('isochrones', [])),
+                'convenience': len(st.session_state.current_network_data.get('convenience_stores', [])),
+                'competitors': len(st.session_state.current_network_data.get('competitors', []))
+            }
+        except Exception as e:
+            print(f"CRITICAL ERROR loading current network data: {str(e)}")
+            data_status['current_network']['error'] = str(e)
+            st.session_state.current_network_data = {}
+
+        try:
+            st.session_state.expansion_data = load_expansion_data(user_token)
+            data_status['expansion']['loaded'] = True
+            data_status['expansion']['counts'] = {
+                'candidates': len(st.session_state.expansion_data.get('candidates', [])),
+                'current_stores': len(st.session_state.expansion_data.get('current_stores', [])),
+                'convenience': len(st.session_state.expansion_data.get('convenience_stores', [])),
+                'competitors': len(st.session_state.expansion_data.get('competitors', []))
+            }
+        except Exception as e:
+            print(f"CRITICAL ERROR loading expansion data: {str(e)}")
+            data_status['expansion']['error'] = str(e)
+            st.session_state.expansion_data = {}
+
+        try:
+            # Load pre-computed optimization results for O(1) lookup
+            st.session_state.optimization_results_cache = load_optimization_results(user_token)
+            if st.session_state.optimization_results_cache:
+                data_status['optimization']['loaded'] = True
+                data_status['optimization']['count'] = len(st.session_state.optimization_results_cache)
+            else:
+                data_status['optimization']['error'] = "Not precomputed"
+                print("⚠ WARNING: Optimization results not available - optimization feature will be slower")
+        except Exception as e:
+            print(f"⚠ WARNING loading optimization results: {str(e)}")
+            print("  Optimization will use runtime calculation instead of precomputed results")
+            data_status['optimization']['error'] = "Not precomputed"
+            st.session_state.optimization_results_cache = []
+
+        try:
+            # Load pre-computed network metrics (singleton aggregates)
+            st.session_state.network_metrics = load_network_metrics(user_token)
+            if st.session_state.network_metrics:
+                data_status['metrics']['loaded'] = True
+            else:
+                data_status['metrics']['error'] = "Not available"
+                print("⚠ WARNING: Network metrics table is empty or missing - some dashboard features may be limited")
+        except Exception as e:
+            print(f"⚠ WARNING loading network metrics: {str(e)}")
+            print("  This is optional - dashboard will still work with limited metrics")
+            data_status['metrics']['error'] = "Not available"
+            st.session_state.network_metrics = {}
+
         st.session_state.data_loaded = True
+        st.session_state.data_status = data_status
+
+        print("\n" + "="*60)
+        print("DATA LOAD COMPLETE")
+        print("="*60)
+
+        # Check for missing viz tables and provide guidance
+        missing_tables = []
+        if not data_status['expansion']['loaded']:
+            missing_tables.append('viz_expansion_candidates')
+        if not data_status['current_network']['loaded']:
+            missing_tables.append('viz_existing_stores')
+        if not data_status['optimization']['loaded']:
+            missing_tables.append('viz_optimization_results')
+        if not data_status['metrics']['loaded']:
+            missing_tables.append('viz_network_metrics')
+
+        if missing_tables:
+            print("\n" + "⚠"*30)
+            print("MISSING VISUALIZATION TABLES")
+            print("⚠"*30)
+            print(f"\nThe following tables are missing from {catalog}.{gold_schema}:")
+            for table in missing_tables:
+                print(f"  ✗ {table}")
+            print(f"\nTo create these tables, run the notebook:")
+            print(f"  transformations/03_gold/viz_layer_prep.ipynb")
+            print("\nThis notebook will create all viz_* tables needed for the app.")
+            print("="*60 + "\n")
     else:
+        print("ERROR: No authentication token available")
         st.session_state.current_network_data = {}
         st.session_state.expansion_data = {}
         st.session_state.optimization_results_cache = []
         st.session_state.network_metrics = {}
         st.session_state.data_loaded = False
+        st.session_state.data_status = data_status
 
 # Load logo
 logo_base64 = get_logo_base64()
@@ -339,6 +517,9 @@ optimization_cache_json = json.dumps(st.session_state.optimization_results_cache
 # Pre-computed network metrics
 network_metrics_json = json.dumps(st.session_state.network_metrics) if st.session_state.data_loaded else "{}"
 logo_data_uri = f"data:image/png;base64,{logo_base64}" if logo_base64 else ""
+
+# Removed data status UI banner per user request
+# Console logging still available for debugging
 
 html_content = f"""
 <!DOCTYPE html>
@@ -620,6 +801,20 @@ html_content = f"""
             padding: 12px;
             border-radius: 8px;
             border: 1px solid #E0E7EF;
+        }}
+
+        .metric-card.highlight {{
+            background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+            border: 1px solid #2563eb;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }}
+
+        .metric-card.highlight .metric-label {{
+            color: rgba(255, 255, 255, 0.9);
+        }}
+
+        .metric-card.highlight .metric-value {{
+            color: white;
         }}
 
         .metric-label {{
@@ -923,6 +1118,62 @@ html_content = f"""
             color: #374151;
             font-weight: 600;
         }}
+
+        /* Sales Cluster Icon Styles */
+        .sales-cluster-icon {{
+            background: transparent !important;
+        }}
+
+        .cluster-sales {{
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 11px;
+            box-shadow: 0 3px 8px rgba(220, 38, 38, 0.4), 0 0 0 2px rgba(255,255,255,0.3);
+            width: 100%;
+            height: 100%;
+            text-align: center;
+        }}
+
+        /* Sales Gradient Legend Styles */
+        .sales-legend {{
+            position: absolute;
+            bottom: 30px;
+            right: 24px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #E0E7EF;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            z-index: 500;
+            min-width: 180px;
+        }}
+
+        .sales-legend .legend-title {{
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }}
+
+        .sales-legend .legend-gradient {{
+            height: 12px;
+            border-radius: 4px;
+            background: linear-gradient(to right, rgb(255, 255, 255), rgb(255, 200, 200), rgb(255, 100, 100), rgb(255, 0, 0));
+            border: 1px solid #E0E7EF;
+            margin-bottom: 6px;
+        }}
+
+        .sales-legend .legend-labels {{
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #6B7280;
+        }}
     </style>
 </head>
 <body>
@@ -960,12 +1211,12 @@ html_content = f"""
             <div class="map-legend">
                 <h4>Map Legend</h4>
                 <div class="legend-item">
-                    <span class="legend-dot" style="background: #fbbf24; border-color: #f59e0b;"></span>
+                    <span class="legend-dot" style="background: #ef4444; border-color: #dc2626;"></span>
                     <span>Expansion Candidates</span>
                 </div>
                 <div class="legend-item">
-                    <span class="legend-dot" style="background: rgba(251, 191, 36, 0.2); border: 1.5px solid #f59e0b;"></span>
-                    <span>H3 Hexagons</span>
+                    <span class="legend-dot" style="background: linear-gradient(135deg, #fff 0%, #ff6666 50%, #ff0000 100%); border: 1.5px solid #dc2626;"></span>
+                    <span>H3 Hexagons (by Sales)</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: #34d399; border-color: #10b981;"></span>
@@ -976,7 +1227,7 @@ html_content = f"""
                     <span>Convenience</span>
                 </div>
                 <div class="legend-item">
-                    <span class="legend-dot" style="background: #ef4444; border-color: #dc2626;"></span>
+                    <span class="legend-dot" style="background: #a855f7; border-color: #9333ea;"></span>
                     <span>Competitors</span>
                 </div>
             </div>
@@ -1013,7 +1264,7 @@ html_content = f"""
         let currentMode = 'current';
         let map = null;
         let candidateClusterGroup = null; // Marker cluster for expansion candidates
-        let layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false}};
+        let layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false, 'h3_hexagons': true, 'candidates': true, 'current_stores': true}};
         let filters = {{min_sales: null, max_sales: null, min_population: null, max_population: null}};
         let optimizationParams = {{max_stores: 5, min_dist_new: 3.0, min_dist_existing: 2.0}};
         let optimizationResults = null;
@@ -1023,6 +1274,33 @@ html_content = f"""
             min_dist_new: [1.0, 2.0, 3.0, 5.0],
             min_dist_existing: [1.0, 2.0, 3.0, 5.0]
         }};
+
+        // Layer groups for hexagons and points (for layer control)
+        let hexagonLayerGroup = null;
+        let pointLayerGroup = null;
+        let salesLegendControl = null;
+
+        // Sales range for color gradient (calculated from candidates)
+        let salesRange = {{ min: 0, max: 1000000 }};
+
+        // Get sales-based color gradient (white to red)
+        function getSalesColor(sales, minSales, maxSales) {{
+            const ratio = Math.max(0, Math.min(1, (sales - minSales) / (maxSales - minSales || 1)));
+            const r = 255;
+            const g = Math.round(255 * (1 - ratio));
+            const b = Math.round(255 * (1 - ratio));
+            return `rgb(${{r}}, ${{g}}, ${{b}})`;
+        }}
+
+        // Format sales for display (e.g., $5.2M)
+        function formatSales(sales) {{
+            if (sales >= 1000000) {{
+                return '$' + (sales / 1000000).toFixed(1) + 'M';
+            }} else if (sales >= 1000) {{
+                return '$' + (sales / 1000).toFixed(0) + 'K';
+            }}
+            return '$' + Math.round(sales);
+        }}
 
         // Initialize map
         function initMap() {{
@@ -1049,7 +1327,7 @@ html_content = f"""
         function renderMap() {{
             // Clear existing layers
             map.eachLayer(layer => {{
-                if (layer instanceof L.Marker || layer instanceof L.CircleMarker || layer instanceof L.GeoJSON) {{
+                if (layer instanceof L.Marker || layer instanceof L.CircleMarker || layer instanceof L.GeoJSON || layer instanceof L.LayerGroup) {{
                     map.removeLayer(layer);
                 }}
             }});
@@ -1060,22 +1338,40 @@ html_content = f"""
                 candidateClusterGroup = null;
             }}
 
+            // Clear hexagon and point layer groups
+            if (hexagonLayerGroup) {{
+                map.removeLayer(hexagonLayerGroup);
+                hexagonLayerGroup = null;
+            }}
+            if (pointLayerGroup) {{
+                map.removeLayer(pointLayerGroup);
+                pointLayerGroup = null;
+            }}
+
+            // Remove sales legend when not in expansion mode
+            if (salesLegendControl && currentMode !== 'expansion') {{
+                map.removeControl(salesLegendControl);
+                salesLegendControl = null;
+            }}
+
             // Create marker cluster group for expansion candidates (yellow/orange)
+            // Shows total sales in cluster icons instead of count
             if (currentMode === 'expansion') {{
                 candidateClusterGroup = L.markerClusterGroup({{
                     iconCreateFunction: function(cluster) {{
+                        var markers = cluster.getAllChildMarkers();
+                        var totalSales = 0;
+                        markers.forEach(function(m) {{
+                            totalSales += m.options.predicted_sales || 0;
+                        }});
+                        var formattedSales = formatSales(totalSales);
                         var count = cluster.getChildCount();
                         var size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
-                        var sizeMap = {{'small': 30, 'medium': 40, 'large': 50}};
+                        var sizeMap = {{'small': 40, 'medium': 50, 'large': 60}};
 
                         return L.divIcon({{
-                            html: '<div style="background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); ' +
-                                  'width: ' + sizeMap[size] + 'px; height: ' + sizeMap[size] + 'px; ' +
-                                  'border-radius: 50%; display: flex; align-items: center; justify-content: center; ' +
-                                  'color: white; font-weight: bold; font-size: 14px; ' +
-                                  'box-shadow: 0 3px 8px rgba(245, 158, 11, 0.4), 0 0 0 2px rgba(255,255,255,0.3);">' +
-                                  count + '</div>',
-                            className: 'custom-cluster-icon',
+                            html: '<div class="cluster-sales">' + formattedSales + '</div>',
+                            className: 'sales-cluster-icon',
                             iconSize: L.point(sizeMap[size], sizeMap[size])
                         }});
                     }}
@@ -1183,8 +1479,8 @@ html_content = f"""
                     L.circleMarker([comp.latitude, comp.longitude], {{
                         pane: 'markers',
                         radius: 5,
-                        fillColor: '#ef4444',
-                        color: '#dc2626',
+                        fillColor: '#a855f7',
+                        color: '#9333ea',
                         weight: 2,
                         fillOpacity: 0.7
                     }}).bindPopup(`<b>${{comp.name}}</b>`).addTo(map);
@@ -1198,6 +1494,36 @@ html_content = f"""
         // Render Expansion mode map
         function renderExpansionMap() {{
             const data = expansionData;
+
+            // Calculate sales range for color gradient
+            if (data.candidates && data.candidates.length > 0) {{
+                const salesValues = data.candidates.map(c => c.predicted_annual_sales).filter(s => s != null);
+                salesRange.min = Math.min(...salesValues);
+                salesRange.max = Math.max(...salesValues);
+            }}
+
+            // Create layer groups for hexagons and points
+            hexagonLayerGroup = L.layerGroup();
+            pointLayerGroup = L.layerGroup();
+
+            // Add sales legend
+            if (salesLegendControl) {{
+                map.removeControl(salesLegendControl);
+            }}
+            salesLegendControl = L.control({{position: 'bottomright'}});
+            salesLegendControl.onAdd = function(map) {{
+                const div = L.DomUtil.create('div', 'sales-legend');
+                div.innerHTML = `
+                    <div class="legend-title">Predicted Annual Sales</div>
+                    <div class="legend-gradient"></div>
+                    <div class="legend-labels">
+                        <span>${{formatSales(salesRange.min)}}</span>
+                        <span>${{formatSales(salesRange.max)}}</span>
+                    </div>
+                `;
+                return div;
+            }};
+            salesLegendControl.addTo(map);
 
             // Add LCE trade area isochrones (always visible)
             if (currentNetworkData.isochrones) {{
@@ -1273,19 +1599,21 @@ html_content = f"""
                     filtered = filtered.filter(c => c.population >= filters.min_population);
                 }}
 
-                // Render H3 hexagons if enabled
+                // Render H3 hexagons if enabled (with sales-based heatmap coloring)
                 if (layers.h3_hexagons) {{
                     filtered.forEach(candidate => {{
                         if (candidate.geometry_geojson) {{
                             try {{
                                 const geojson = JSON.parse(candidate.geometry_geojson);
+                                // Apply sales-based color gradient (white to red)
+                                const fillColor = getSalesColor(candidate.predicted_annual_sales, salesRange.min, salesRange.max);
                                 const hexagon = L.geoJSON(geojson, {{
                                     pane: 'isochrones',
                                     style: {{
-                                        color: '#f59e0b',
+                                        color: '#dc2626',
                                         weight: 1.5,
-                                        fillColor: '#fbbf24',
-                                        fillOpacity: 0.2
+                                        fillColor: fillColor,
+                                        fillOpacity: 0.7
                                     }}
                                 }});
 
@@ -1296,7 +1624,7 @@ html_content = f"""
                                 `);
 
                                 hexagon.on('click', () => showDetailPanel(candidate));
-                                hexagon.addTo(map);
+                                hexagonLayerGroup.addLayer(hexagon);
                             }} catch (e) {{
                                 console.error('Error rendering H3 hexagon:', e);
                             }}
@@ -1304,15 +1632,16 @@ html_content = f"""
                     }});
                 }}
 
-                // Render centroid markers
+                // Render centroid markers (add to point layer group)
                 filtered.forEach(candidate => {{
                     const marker = L.circleMarker([candidate.latitude, candidate.longitude], {{
                         pane: 'markers',
                         radius: 8,
-                        fillColor: '#fbbf24',
-                        color: '#f59e0b',
+                        fillColor: '#ef4444',
+                        color: '#dc2626',
                         weight: 2,
-                        fillOpacity: 0.8
+                        fillOpacity: 0.8,
+                        predicted_sales: candidate.predicted_annual_sales || 0  // For cluster aggregation
                     }});
 
                     marker.bindPopup(`
@@ -1323,24 +1652,27 @@ html_content = f"""
 
                     marker.on('click', () => showDetailPanel(candidate));
                     candidateClusterGroup.addLayer(marker);
+                    pointLayerGroup.addLayer(marker);
                 }});
             }}
 
             // Add optimized locations if available
             if (optimizationResults) {{
-                // Render H3 hexagons if enabled
+                // Render H3 hexagons if enabled (with sales-based heatmap coloring)
                 if (layers.h3_hexagons) {{
                     optimizationResults.forEach(location => {{
                         if (location.geometry_geojson) {{
                             try {{
                                 const geojson = JSON.parse(location.geometry_geojson);
+                                // Apply sales-based color gradient (white to red)
+                                const fillColor = getSalesColor(location.predicted_annual_sales, salesRange.min, salesRange.max);
                                 const hexagon = L.geoJSON(geojson, {{
                                     pane: 'isochrones',
                                     style: {{
-                                        color: '#f59e0b',
+                                        color: '#dc2626',
                                         weight: 2,
-                                        fillColor: '#fbbf24',
-                                        fillOpacity: 0.3
+                                        fillColor: fillColor,
+                                        fillOpacity: 0.7
                                     }}
                                 }});
 
@@ -1351,7 +1683,7 @@ html_content = f"""
                                 `);
 
                                 hexagon.on('click', () => showDetailPanel(location));
-                                hexagon.addTo(map);
+                                hexagonLayerGroup.addLayer(hexagon);
                             }} catch (e) {{
                                 console.error('Error rendering optimized H3 hexagon:', e);
                             }}
@@ -1364,10 +1696,11 @@ html_content = f"""
                     const marker = L.circleMarker([location.latitude, location.longitude], {{
                         pane: 'markers',
                         radius: 9,
-                        fillColor: '#fbbf24',
-                        color: '#f59e0b',
+                        fillColor: '#ef4444',
+                        color: '#dc2626',
                         weight: 3,
-                        fillOpacity: 0.9
+                        fillOpacity: 0.9,
+                        predicted_sales: location.predicted_annual_sales || 0  // For cluster aggregation
                     }});
 
                     marker.bindPopup(`
@@ -1378,6 +1711,7 @@ html_content = f"""
 
                     marker.on('click', () => showDetailPanel(location));
                     candidateClusterGroup.addLayer(marker);
+                    pointLayerGroup.addLayer(marker);
                 }});
             }}
 
@@ -1405,12 +1739,17 @@ html_content = f"""
                     L.circleMarker([comp.latitude, comp.longitude], {{
                         pane: 'markers',
                         radius: 5,
-                        fillColor: '#ef4444',
-                        color: '#dc2626',
+                        fillColor: '#a855f7',
+                        color: '#9333ea',
                         weight: 2,
                         fillOpacity: 0.7
                     }}).bindPopup(`<b>${{comp.name}}</b>`).addTo(map);
                 }});
+            }}
+
+            // Add hexagon layer group to map (hexagons ON by default)
+            if (hexagonLayerGroup && layers.h3_hexagons) {{
+                hexagonLayerGroup.addTo(map);
             }}
 
             updateMetrics();
@@ -1636,6 +1975,9 @@ html_content = f"""
                     // Calculate metrics from visible candidates only
                     const totalRevenue = visibleCandidates.reduce((sum, c) => sum + c.predicted_annual_sales, 0);
                     const partnershipCount = visibleCandidates.filter(c => c.fulfillment_strategy === 'partner').length;
+                    const partnershipRate = visibleCandidates.length > 0
+                        ? (partnershipCount / visibleCandidates.length * 100)
+                        : 0;
 
                     // Calculate median revenue from visible candidates
                     const salesSorted = visibleCandidates
@@ -1652,6 +1994,10 @@ html_content = f"""
                                 <div class="metric-label">Expansion Candidates</div>
                                 <div class="metric-value">${{visibleCandidates.length}}</div>
                             </div>
+                            <div class="metric-card highlight">
+                                <div class="metric-label">% with Partnership Opportunity</div>
+                                <div class="metric-value">${{partnershipRate.toFixed(0)}}%</div>
+                            </div>
                             <div class="metric-card">
                                 <div class="metric-label">Total Revenue Potential</div>
                                 <div class="metric-value">$${{(totalRevenue / 1000000).toFixed(1)}}M</div>
@@ -1659,10 +2005,6 @@ html_content = f"""
                             <div class="metric-card">
                                 <div class="metric-label">Median Candidate Revenue</div>
                                 <div class="metric-value">$${{Math.round(medianRevenue).toLocaleString()}}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Partnership Opportunities</div>
-                                <div class="metric-value">${{partnershipCount}}</div>
                             </div>
                         </div>
                     `;
@@ -1731,7 +2073,7 @@ html_content = f"""
                         </div>
                         <div class="checkbox-control">
                             <input type="checkbox" id="layer-h3-hexagons" ${{layers.h3_hexagons ? 'checked' : ''}}>
-                            <label for="layer-h3-hexagons">H3 Hexagons</label>
+                            <label for="layer-h3-hexagons">H3 Heatmap (Sales)</label>
                         </div>
                         <div class="checkbox-control">
                             <input type="checkbox" id="layer-current" ${{layers.current_stores !== false ? 'checked' : ''}}>
@@ -2063,7 +2405,7 @@ html_content = f"""
                 if (currentMode === 'current') {{
                     layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false}};
                 }} else if (currentMode === 'expansion') {{
-                    layers = {{'candidates': true, 'current_stores': true, 'convenience': true, 'competitors': false}};
+                    layers = {{'candidates': true, 'h3_hexagons': true, 'current_stores': true, 'convenience': true, 'competitors': false}};
                     filters = {{min_sales: null, min_population: null}};
                 }} else if (currentMode === 'chat') {{
                     // Chat mode - show placeholder
