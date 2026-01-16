@@ -105,25 +105,30 @@ def load_current_network_data(user_token):
         stores = query(user_token, f"""
             SELECT store_number, city, state, latitude, longitude,
                    population, poi_count as total_poi_count,
-                   h3_cell_id, geometry_geojson
+                   h3_cell_id, geometry_geojson,
+                   COALESCE(annual_sales, 0) as annual_sales
             FROM {catalog}.{gold_schema}.viz_existing_stores
         """)
         print(f"✓ Loaded {len(stores)} existing stores")
 
         # Add placeholder for revenue if not present
-        if not stores.empty and 'annual_revenue' not in stores.columns:
-            stores['annual_revenue'] = 0
+        if not stores.empty and 'annual_sales' not in stores.columns:
+            stores['annual_sales'] = 0
     except Exception as e:
         print(f"✗ ERROR loading viz_existing_stores: {str(e)}")
         stores = pd.DataFrame()
 
     try:
-        print(f"Loading isochrones_lce from {catalog}.{silver_schema}...")
+        # Load isochrones for MA stores only (filter via INNER JOIN)
+        print(f"Loading isochrones_lce from {catalog}.{silver_schema} (MA only)...")
         isochrones = query(user_token, f"""
-            SELECT location_id as store_number, ST_AsGeoJSON(geometry) as isochrone_geojson
-            FROM {catalog}.{silver_schema}.isochrones_lce
+            SELECT iso.location_id as store_number, ST_AsGeoJSON(iso.geometry) as isochrone_geojson
+            FROM {catalog}.{silver_schema}.isochrones_lce iso
+            INNER JOIN {catalog}.{gold_schema}.viz_existing_stores stores
+                ON iso.location_id = stores.store_number
+            WHERE stores.state = 'MA'
         """)
-        print(f"✓ Loaded {len(isochrones)} LCE isochrones")
+        print(f"✓ Loaded {len(isochrones)} LCE isochrones (MA only)")
     except Exception as e:
         print(f"✗ ERROR loading isochrones_lce: {str(e)}")
         isochrones = pd.DataFrame()
@@ -249,7 +254,8 @@ def load_expansion_data(user_token):
         current_stores = query(user_token, f"""
             SELECT store_number, city, state, latitude, longitude,
                    population, poi_count as total_poi_count,
-                   h3_cell_id, geometry_geojson
+                   h3_cell_id, geometry_geojson,
+                   COALESCE(annual_sales, 0) as annual_sales
             FROM {catalog}.{gold_schema}.viz_existing_stores
         """)
         print(f"✓ Loaded {len(current_stores)} current stores")
@@ -1189,8 +1195,8 @@ html_content = f"""
         <!-- Sidebar -->
         <div id="sidebar">
             <div class="mode-tabs">
-                <button class="mode-tab active" data-mode="current">Existing</button>
-                <button class="mode-tab" data-mode="expansion">Expansion</button>
+                <button class="mode-tab active" data-mode="current">Overview</button>
+                <button class="mode-tab" data-mode="expansion">Detail</button>
                 <button class="mode-tab" data-mode="chat">Chat</button>
             </div>
 
@@ -1216,7 +1222,7 @@ html_content = f"""
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: linear-gradient(135deg, #fff 0%, #ff6666 50%, #ff0000 100%); border: 1.5px solid #dc2626;"></span>
-                    <span>H3 Hexagons (by Sales)</span>
+                    <span>Demand Heatmap - H3</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: #34d399; border-color: #10b981;"></span>
@@ -1224,7 +1230,7 @@ html_content = f"""
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: #60a5fa; border-color: #3b82f6;"></span>
-                    <span>Convenience</span>
+                    <span>Potential Partner Stores</span>
                 </div>
                 <div class="legend-item">
                     <span class="legend-dot" style="background: #a855f7; border-color: #9333ea;"></span>
@@ -1264,15 +1270,15 @@ html_content = f"""
         let currentMode = 'current';
         let map = null;
         let candidateClusterGroup = null; // Marker cluster for expansion candidates
-        let layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false, 'h3_hexagons': true, 'candidates': true, 'current_stores': true}};
-        let filters = {{min_sales: null, max_sales: null, min_population: null, max_population: null}};
-        let optimizationParams = {{max_stores: 5, min_dist_new: 3.0, min_dist_existing: 2.0}};
+        let layers = {{'current_stores': true, 'h3_hexagons': true, 'candidates': false, 'candidate_isochrones': false, 'convenience': false, 'competitors': false}};
+        let filters = {{min_sales: 500000, max_sales: null, min_population: 5000, max_population: null}};
+        let optimizationParams = {{max_stores: 50, min_dist_new: 2.0, min_dist_existing: 2.0}};
         let optimizationResults = null;
         // Available parameter grid values (must match what's pre-computed in pipeline)
         const paramGrid = {{
-            max_stores: [5, 10, 15, 20, 25, 30],
-            min_dist_new: [1.0, 2.0, 3.0, 5.0],
-            min_dist_existing: [1.0, 2.0, 3.0, 5.0]
+            max_stores: [10, 50, 100],
+            min_dist_new: [1.0, 2.0, 3.0],
+            min_dist_existing: [1.0, 2.0, 3.0]
         }};
 
         // Layer groups for hexagons and points (for layer control)
@@ -1348,151 +1354,47 @@ html_content = f"""
                 pointLayerGroup = null;
             }}
 
-            // Remove sales legend when not in expansion mode
-            if (salesLegendControl && currentMode !== 'expansion') {{
+            // Remove sales legend when neither candidates nor H3 heatmap are enabled
+            if (salesLegendControl && !layers.candidates && !layers.h3_hexagons) {{
                 map.removeControl(salesLegendControl);
                 salesLegendControl = null;
             }}
 
             // Create marker cluster group for expansion candidates (yellow/orange)
             // Shows total sales in cluster icons instead of count
-            if (currentMode === 'expansion') {{
-                candidateClusterGroup = L.markerClusterGroup({{
-                    iconCreateFunction: function(cluster) {{
-                        var markers = cluster.getAllChildMarkers();
-                        var totalSales = 0;
-                        markers.forEach(function(m) {{
-                            totalSales += m.options.predicted_sales || 0;
-                        }});
-                        var formattedSales = formatSales(totalSales);
-                        var count = cluster.getChildCount();
-                        var size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
-                        var sizeMap = {{'small': 40, 'medium': 50, 'large': 60}};
+            // Create in both modes to support layer toggles
+            candidateClusterGroup = L.markerClusterGroup({{
+                iconCreateFunction: function(cluster) {{
+                    var markers = cluster.getAllChildMarkers();
+                    var totalSales = 0;
+                    markers.forEach(function(m) {{
+                        totalSales += m.options.predicted_sales || 0;
+                    }});
+                    var formattedSales = formatSales(totalSales);
+                    var count = cluster.getChildCount();
+                    var size = count < 10 ? 'small' : count < 50 ? 'medium' : 'large';
+                    var sizeMap = {{'small': 40, 'medium': 50, 'large': 60}};
 
-                        return L.divIcon({{
-                            html: '<div class="cluster-sales">' + formattedSales + '</div>',
-                            className: 'sales-cluster-icon',
-                            iconSize: L.point(sizeMap[size], sizeMap[size])
-                        }});
-                    }}
-                }});
-                map.addLayer(candidateClusterGroup);
-            }}
+                    return L.divIcon({{
+                        html: '<div class="cluster-sales">' + formattedSales + '</div>',
+                        className: 'sales-cluster-icon',
+                        iconSize: L.point(sizeMap[size], sizeMap[size])
+                    }});
+                }}
+            }});
+            map.addLayer(candidateClusterGroup);
 
-            if (currentMode === 'current') {{
-                renderCurrentNetworkMap();
-            }} else if (currentMode === 'expansion') {{
-                renderExpansionMap();
+            if (currentMode === 'current' || currentMode === 'expansion') {{
+                renderUnifiedMap();
             }}
         }}
 
         // Render Current Network mode map
-        function renderCurrentNetworkMap() {{
-            const data = currentNetworkData;
 
-            // Add LCE trade area isochrones if enabled
-            if (layers.trade_areas && data.isochrones) {{
-                data.isochrones.forEach(iso => {{
-                    if (iso.isochrone_geojson) {{
-                        try {{
-                            const geojson = JSON.parse(iso.isochrone_geojson);
-                            L.geoJSON(geojson, {{
-                                pane: 'isochrones',
-                                style: {{
-                                    color: '#10b981',
-                                    weight: 1.5,
-                                    fillOpacity: 0.15,
-                                    fillColor: '#10b981'
-                                }}
-                            }}).addTo(map);
-                        }} catch (e) {{
-                            console.error('Failed to parse LCE isochrone:', e);
-                        }}
-                    }}
-                }});
-            }}
-
-            // Add convenience store trade area isochrones if enabled
-            if (layers.convenience && data.convenience_isochrones) {{
-                data.convenience_isochrones.forEach(iso => {{
-                    if (iso.isochrone_geojson) {{
-                        try {{
-                            const geojson = JSON.parse(iso.isochrone_geojson);
-                            L.geoJSON(geojson, {{
-                                pane: 'isochrones',
-                                style: {{
-                                    color: '#3b82f6',
-                                    weight: 1.5,
-                                    fillOpacity: 0.15,
-                                    fillColor: '#3b82f6'
-                                }}
-                            }}).addTo(map);
-                        }} catch (e) {{
-                            console.error('Failed to parse convenience isochrone:', e);
-                        }}
-                    }}
-                }});
-            }}
-
-            // Add stores
-            if (layers.stores && data.stores) {{
-                data.stores.forEach(store => {{
-                    const marker = L.circleMarker([store.latitude, store.longitude], {{
-                        pane: 'markers',
-                        radius: 8,
-                        fillColor: '#10b981',
-                        color: '#065f46',
-                        weight: 2,
-                        fillOpacity: 0.9
-                    }});
-
-                    marker.bindPopup(`
-                        <b>Store ${{store.store_number}}</b><br/>
-                        ${{store.city}}, ${{store.state}}<br/>
-                        <hr style="margin: 5px 0;">
-                        <b>Population:</b> ${{Math.round(store.population).toLocaleString()}}<br/>
-                        <b>POI Count:</b> ${{store.total_poi_count.toLocaleString()}}
-                    `);
-
-                    marker.on('click', () => showDetailPanel(store));
-                    marker.addTo(map);
-                }});
-            }}
-
-            // Add convenience stores
-            if (layers.convenience && data.convenience_stores) {{
-                data.convenience_stores.forEach(store => {{
-                    L.circleMarker([store.latitude, store.longitude], {{
-                        pane: 'markers',
-                        radius: 5,
-                        fillColor: '#3b82f6',
-                        color: '#1e3a8a',
-                        weight: 2,
-                        fillOpacity: 0.9
-                    }}).bindPopup(`<b>${{store.name}}</b>`).addTo(map);
-                }});
-            }}
-
-            // Add competitors
-            if (layers.competitors && data.competitors) {{
-                data.competitors.forEach(comp => {{
-                    L.circleMarker([comp.latitude, comp.longitude], {{
-                        pane: 'markers',
-                        radius: 5,
-                        fillColor: '#a855f7',
-                        color: '#9333ea',
-                        weight: 2,
-                        fillOpacity: 0.7
-                    }}).bindPopup(`<b>${{comp.name}}</b>`).addTo(map);
-                }});
-            }}
-
-            // Update metrics
-            updateMetrics();
-        }}
 
         // Render Expansion mode map
-        function renderExpansionMap() {{
+        // Render Unified map (used for both modes)
+        function renderUnifiedMap() {{
             const data = expansionData;
 
             // Calculate sales range for color gradient
@@ -1506,24 +1408,26 @@ html_content = f"""
             hexagonLayerGroup = L.layerGroup();
             pointLayerGroup = L.layerGroup();
 
-            // Add sales legend
-            if (salesLegendControl) {{
-                map.removeControl(salesLegendControl);
+            // Add sales legend when showing candidates or H3 heatmap
+            if (layers.candidates || layers.h3_hexagons) {{
+                if (salesLegendControl) {{
+                    map.removeControl(salesLegendControl);
+                }}
+                salesLegendControl = L.control({{position: 'bottomright'}});
+                salesLegendControl.onAdd = function(map) {{
+                    const div = L.DomUtil.create('div', 'sales-legend');
+                    div.innerHTML = `
+                        <div class="legend-title">Predicted Annual Sales</div>
+                        <div class="legend-gradient"></div>
+                        <div class="legend-labels">
+                            <span>${{formatSales(salesRange.min)}}</span>
+                            <span>${{formatSales(salesRange.max)}}</span>
+                        </div>
+                    `;
+                    return div;
+                }};
+                salesLegendControl.addTo(map);
             }}
-            salesLegendControl = L.control({{position: 'bottomright'}});
-            salesLegendControl.onAdd = function(map) {{
-                const div = L.DomUtil.create('div', 'sales-legend');
-                div.innerHTML = `
-                    <div class="legend-title">Predicted Annual Sales</div>
-                    <div class="legend-gradient"></div>
-                    <div class="legend-labels">
-                        <span>${{formatSales(salesRange.min)}}</span>
-                        <span>${{formatSales(salesRange.max)}}</span>
-                    </div>
-                `;
-                return div;
-            }};
-            salesLegendControl.addTo(map);
 
             // Add LCE trade area isochrones (always visible)
             if (currentNetworkData.isochrones) {{
@@ -1569,26 +1473,38 @@ html_content = f"""
                 }});
             }}
 
-            // Add current stores
-            if (layers.current_stores && data.current_stores) {{
-                data.current_stores.forEach(store => {{
+            // Add current stores (with fallback and detailed popup)
+            const currentStoresSource = (data.current_stores && data.current_stores.length > 0)
+                ? data.current_stores
+                : (currentNetworkData.stores || []);
+
+            if (layers.current_stores && currentStoresSource.length > 0) {{
+                currentStoresSource.forEach(store => {{
                     const marker = L.circleMarker([store.latitude, store.longitude], {{
                         pane: 'markers',
-                        radius: 6,
+                        radius: 8,
                         fillColor: '#10b981',
                         color: '#065f46',
                         weight: 2,
                         fillOpacity: 0.9
                     }});
 
-                    marker.bindPopup(`<b>Current Store ${{store.store_number}}</b>`);
+                    marker.bindPopup(`
+                        <b>Store ${{store.store_number}}</b><br/>
+                        ${{store.city}}, ${{store.state}}<br/>
+                        <hr style="margin: 5px 0;">
+                        <b>Population:</b> ${{Math.round(store.population).toLocaleString()}}<br/>
+                        <b>POI Count:</b> ${{store.total_poi_count.toLocaleString()}}
+                    `);
+
                     marker.on('click', () => showDetailPanel(store));
                     marker.addTo(map);
                 }});
             }}
 
             // Add candidates (filtered) - only if no optimization results or if candidates layer is enabled
-            if (layers.candidates && data.candidates && !optimizationResults) {{
+            // Add candidates (filtered) - only if no optimization results 
+            if (data.candidates && !optimizationResults) {{
                 let filtered = data.candidates;
 
                 // Apply filters
@@ -1597,6 +1513,21 @@ html_content = f"""
                 }}
                 if (filters.min_population) {{
                     filtered = filtered.filter(c => c.population >= filters.min_population);
+                }}
+
+                // Render Candidate Isochrones if enabled (NEW)
+                if (layers.candidate_isochrones) {{
+                    filtered.forEach(candidate => {{
+                        // Simulate isochrone with 2km radius circle
+                        L.circle([candidate.latitude, candidate.longitude], {{
+                            pane: 'isochrones',
+                            radius: 2000,
+                            color: '#fca5a5',
+                            fillColor: '#ef4444',
+                            fillOpacity: 0.15,
+                            weight: 1.5
+                        }}).addTo(map);
+                    }});
                 }}
 
                 // Render H3 hexagons if enabled (with sales-based heatmap coloring)
@@ -1633,27 +1564,29 @@ html_content = f"""
                 }}
 
                 // Render centroid markers (add to point layer group)
-                filtered.forEach(candidate => {{
-                    const marker = L.circleMarker([candidate.latitude, candidate.longitude], {{
-                        pane: 'markers',
-                        radius: 8,
-                        fillColor: '#ef4444',
-                        color: '#dc2626',
-                        weight: 2,
-                        fillOpacity: 0.8,
-                        predicted_sales: candidate.predicted_annual_sales || 0  // For cluster aggregation
+                if (layers.candidates) {{
+                    filtered.forEach(candidate => {{
+                        const marker = L.circleMarker([candidate.latitude, candidate.longitude], {{
+                            pane: 'markers',
+                            radius: 8,
+                            fillColor: '#ef4444',
+                            color: '#dc2626',
+                            weight: 2,
+                            fillOpacity: 0.8,
+                            predicted_sales: candidate.predicted_annual_sales || 0  // For cluster aggregation
+                        }});
+
+                        marker.bindPopup(`
+                            <b>Expansion Location ${{candidate.store_number}}</b><br/>
+                            <b>Predicted Sales:</b> $${{candidate.predicted_annual_sales.toLocaleString()}}<br/>
+                            <b>Population:</b> ${{Math.round(candidate.population).toLocaleString()}}
+                        `);
+
+                        marker.on('click', () => showDetailPanel(candidate));
+                        candidateClusterGroup.addLayer(marker);
+                        pointLayerGroup.addLayer(marker);
                     }});
-
-                    marker.bindPopup(`
-                        <b>Expansion Location ${{candidate.store_number}}</b><br/>
-                        <b>Predicted Sales:</b> $${{candidate.predicted_annual_sales.toLocaleString()}}<br/>
-                        <b>Population:</b> ${{Math.round(candidate.population).toLocaleString()}}
-                    `);
-
-                    marker.on('click', () => showDetailPanel(candidate));
-                    candidateClusterGroup.addLayer(marker);
-                    pointLayerGroup.addLayer(marker);
-                }});
+                }}
             }}
 
             // Add optimized locations if available
@@ -1692,27 +1625,29 @@ html_content = f"""
                 }}
 
                 // Render centroid markers
-                optimizationResults.forEach(location => {{
-                    const marker = L.circleMarker([location.latitude, location.longitude], {{
-                        pane: 'markers',
-                        radius: 9,
-                        fillColor: '#ef4444',
-                        color: '#dc2626',
-                        weight: 3,
-                        fillOpacity: 0.9,
-                        predicted_sales: location.predicted_annual_sales || 0  // For cluster aggregation
+                if (layers.candidates) {{
+                    optimizationResults.forEach(location => {{
+                        const marker = L.circleMarker([location.latitude, location.longitude], {{
+                            pane: 'markers',
+                            radius: 9,
+                            fillColor: '#ef4444',
+                            color: '#dc2626',
+                            weight: 3,
+                            fillOpacity: 0.9,
+                            predicted_sales: location.predicted_annual_sales || 0  // For cluster aggregation
+                        }});
+
+                        marker.bindPopup(`
+                            <b>Optimized Location</b><br/>
+                            <b>Predicted Sales:</b> $${{location.predicted_annual_sales.toLocaleString()}}<br/>
+                            <b>Population:</b> ${{Math.round(location.population).toLocaleString()}}
+                        `);
+
+                        marker.on('click', () => showDetailPanel(location));
+                        candidateClusterGroup.addLayer(marker);
+                        pointLayerGroup.addLayer(marker);
                     }});
-
-                    marker.bindPopup(`
-                        <b>Optimized Location</b><br/>
-                        <b>Predicted Sales:</b> $${{location.predicted_annual_sales.toLocaleString()}}<br/>
-                        <b>Population:</b> ${{Math.round(location.population).toLocaleString()}}
-                    `);
-
-                    marker.on('click', () => showDetailPanel(location));
-                    candidateClusterGroup.addLayer(marker);
-                    pointLayerGroup.addLayer(marker);
-                }});
+                }}
             }}
 
             // Add convenience/competitors if enabled
@@ -1777,13 +1712,12 @@ html_content = f"""
                 <div class="panel-section">
             `;
 
-            // Revenue (if available)
-            if (storeData.annual_revenue !== undefined || storeData.revenue !== undefined) {{
-                const revenue = storeData.annual_revenue || storeData.revenue;
+            // Annual Sales (for current stores)
+            if (storeData.annual_sales !== undefined && storeData.annual_sales > 0) {{
                 detailHTML += `
                     <div class="metric-row">
-                        <div class="metric-row-label">Annual Revenue</div>
-                        <div class="metric-row-value">$${{revenue.toLocaleString()}}</div>
+                        <div class="metric-row-label">Annual Sales</div>
+                        <div class="metric-row-value">$${{storeData.annual_sales.toLocaleString()}}</div>
                     </div>
                 `;
             }}
@@ -1932,70 +1866,67 @@ html_content = f"""
             const container = document.getElementById('metrics-container');
 
             if (currentMode === 'current') {{
-                // Use pre-computed network metrics from viz_network_metrics table
+                // Use data from both current network and expansion data
+                const data = currentNetworkData;
+                const expData = expansionData;
                 const metrics = networkMetrics;
 
-                if (metrics && metrics.total_existing_stores) {{
-                    // Format total market reach (population in millions)
-                    const marketReach = metrics.total_network_population;
-                    const marketReachFormatted = marketReach >= 1000000
-                        ? `${{(marketReach / 1000000).toFixed(1)}}M`
-                        : `${{Math.round(marketReach / 1000).toLocaleString()}}K`;
+                // Calculate current stores metrics
+                const storeCount = data.stores ? data.stores.length : 0;
+                const totalAnnualSales = data.stores ? data.stores.reduce((sum, s) => sum + (s.annual_sales || 0), 0) : 0;
+                const convenienceCount = data.convenience_stores ? data.convenience_stores.length : 0;
+                const competitorCount = data.competitors ? data.competitors.length : 0;
 
-                    container.innerHTML = `
-                        <div class="section-header">Network Metrics</div>
-                        <div class="metrics">
-                            <div class="metric-card">
-                                <div class="metric-label">Total Stores</div>
-                                <div class="metric-value">${{metrics.total_existing_stores}}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Total Market Reach</div>
-                                <div class="metric-value">${{marketReachFormatted}}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Avg Store Population</div>
-                                <div class="metric-value">${{Math.round(metrics.avg_store_population).toLocaleString()}}</div>
-                            </div>
-                            <div class="metric-card">
-                                <div class="metric-label">Avg POIs per Store</div>
-                                <div class="metric-value">${{Math.round(metrics.avg_store_poi).toLocaleString()}}</div>
-                            </div>
+                // Format total sales
+                const totalSalesFormatted = totalAnnualSales >= 1000000
+                    ? `$${{(totalAnnualSales / 1000000).toFixed(1)}}M`
+                    : `$${{Math.round(totalAnnualSales / 1000).toLocaleString()}}K`;
+
+                let metricsHTML = `
+                    <div class="section-header">Current Stores Metrics</div>
+                    <div class="metrics">
+                        <div class="metric-card">
+                            <div class="metric-label">Current Stores</div>
+                            <div class="metric-value">${{storeCount}}</div>
                         </div>
-                    `;
-                }}
-            }} else if (currentMode === 'expansion') {{
-                const data = expansionData;
-                const metrics = networkMetrics;
+                        <div class="metric-card">
+                            <div class="metric-label">Total Annual Sales</div>
+                            <div class="metric-value">${{totalSalesFormatted}}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Potential Partner Stores</div>
+                            <div class="metric-value">${{convenienceCount}}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Competitor Stores</div>
+                            <div class="metric-value">${{competitorCount}}</div>
+                        </div>
+                    </div>
+                `;
 
-                if (data.candidates && data.candidates.length > 0) {{
-                    // Get visible candidates (filtered or optimized)
+                // Add Expansion Metrics below if expansion data is available
+                if (expData.candidates && expData.candidates.length > 0) {{
                     const visibleCandidates = getVisibleCandidates();
-
-                    // Calculate metrics from visible candidates only
                     const totalRevenue = visibleCandidates.reduce((sum, c) => sum + c.predicted_annual_sales, 0);
                     const partnershipCount = visibleCandidates.filter(c => c.fulfillment_strategy === 'partner').length;
                     const partnershipRate = visibleCandidates.length > 0
                         ? (partnershipCount / visibleCandidates.length * 100)
                         : 0;
 
-                    // Calculate median revenue from visible candidates
-                    const salesSorted = visibleCandidates
-                        .map(c => c.predicted_annual_sales)
-                        .sort((a, b) => a - b);
-                    const medianRevenue = salesSorted.length > 0
-                        ? salesSorted[Math.floor(salesSorted.length / 2)]
-                        : 0;
+                    // Calculate Partnership Revenue Potential (revenue from locations within partner store trade areas)
+                    const partnershipRevenue = visibleCandidates
+                        .filter(c => c.within_convenience_isochrone || c.fulfillment_strategy === 'partner')
+                        .reduce((sum, c) => sum + c.predicted_annual_sales, 0);
 
-                    container.innerHTML = `
-                        <div class="section-header">Expansion Metrics</div>
+                    metricsHTML += `
+                        <div class="section-header" style="margin-top: 24px;">Expansion Metrics</div>
                         <div class="metrics">
                             <div class="metric-card">
                                 <div class="metric-label">Expansion Candidates</div>
                                 <div class="metric-value">${{visibleCandidates.length}}</div>
                             </div>
                             <div class="metric-card highlight">
-                                <div class="metric-label">% with Partnership Opportunity</div>
+                                <div class="metric-label">% Partnership Opportunity</div>
                                 <div class="metric-value">${{partnershipRate.toFixed(0)}}%</div>
                             </div>
                             <div class="metric-card">
@@ -2003,12 +1934,59 @@ html_content = f"""
                                 <div class="metric-value">$${{(totalRevenue / 1000000).toFixed(1)}}M</div>
                             </div>
                             <div class="metric-card">
-                                <div class="metric-label">Median Candidate Revenue</div>
-                                <div class="metric-value">$${{Math.round(medianRevenue).toLocaleString()}}</div>
+                                <div class="metric-label">Partnership Revenue Potential</div>
+                                <div class="metric-value">$${{(partnershipRevenue / 1000000).toFixed(1)}}M</div>
                             </div>
                         </div>
                     `;
                 }}
+
+                container.innerHTML = metricsHTML;
+            }} else if (currentMode === 'expansion') {{
+                const data = expansionData;
+                const currData = currentNetworkData;
+                const metrics = networkMetrics;
+
+                let metricsHTML = '';
+
+                // Add Expansion Metrics
+                if (data.candidates && data.candidates.length > 0) {{
+                    const visibleCandidates = getVisibleCandidates();
+                    const totalRevenue = visibleCandidates.reduce((sum, c) => sum + c.predicted_annual_sales, 0);
+                    const partnershipCount = visibleCandidates.filter(c => c.fulfillment_strategy === 'partner').length;
+                    const partnershipRate = visibleCandidates.length > 0
+                        ? (partnershipCount / visibleCandidates.length * 100)
+                        : 0;
+
+                    // Calculate Partnership Revenue Potential (revenue from locations within partner store trade areas)
+                    const partnershipRevenue = visibleCandidates
+                        .filter(c => c.within_convenience_isochrone || c.fulfillment_strategy === 'partner')
+                        .reduce((sum, c) => sum + c.predicted_annual_sales, 0);
+
+                    metricsHTML = `
+                        <div class="section-header">Expansion Metrics</div>
+                        <div class="metrics">
+                            <div class="metric-card">
+                                <div class="metric-label">Expansion Candidates</div>
+                                <div class="metric-value">${{visibleCandidates.length}}</div>
+                            </div>
+                            <div class="metric-card highlight">
+                                <div class="metric-label">% Partnership Opportunity</div>
+                                <div class="metric-value">${{partnershipRate.toFixed(0)}}%</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Total Revenue Potential</div>
+                                <div class="metric-value">$${{(totalRevenue / 1000000).toFixed(1)}}M</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="metric-label">Partnership Revenue Potential</div>
+                                <div class="metric-value">$${{(partnershipRevenue / 1000000).toFixed(1)}}M</div>
+                            </div>
+                        </div>
+                    `;
+                }}
+
+                container.innerHTML = metricsHTML;
             }}
         }}
 
@@ -2016,47 +1994,38 @@ html_content = f"""
         function renderControls() {{
             const container = document.getElementById('controls-container');
 
-            if (currentMode === 'current') {{
-                container.innerHTML = `
-                    <div class="section-header">Layer Controls</div>
-                    <div class="control-group">
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-stores" ${{layers.stores ? 'checked' : ''}}>
-                            <label for="layer-stores">Current Stores</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-trade" ${{layers.trade_areas ? 'checked' : ''}}>
-                            <label for="layer-trade">5-min Trade Area</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-convenience" ${{layers.convenience ? 'checked' : ''}}>
-                            <label for="layer-convenience">Convenience Stores</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-competitors" ${{layers.competitors ? 'checked' : ''}}>
-                            <label for="layer-competitors">Competitors</label>
-                        </div>
+            const layersHTML = `
+                <div class="section-header">Layer Controls</div>
+                <div class="control-group">
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-candidates" ${{layers.candidates !== false ? 'checked' : ''}}>
+                        <label for="layer-candidates">Expansion Candidates</label>
                     </div>
-                `;
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-h3-hexagons" ${{layers.h3_hexagons ? 'checked' : ''}}>
+                        <label for="layer-h3-hexagons">Demand Heatmap - H3</label>
+                    </div>
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-current" ${{layers.current_stores !== false ? 'checked' : ''}}>
+                        <label for="layer-current">Current Stores</label>
+                    </div>
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-candidate-isochrones" ${{layers.candidate_isochrones ? 'checked' : ''}}>
+                        <label for="layer-candidate-isochrones">Candidate Trade Areas</label>
+                    </div>
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-convenience" ${{layers.convenience ? 'checked' : ''}}>
+                        <label for="layer-convenience">Potential Partner Stores</label>
+                    </div>
+                    <div class="checkbox-control">
+                        <input type="checkbox" id="layer-competitors" ${{layers.competitors ? 'checked' : ''}}>
+                        <label for="layer-competitors">Competitors</label>
+                    </div>
+                </div>
+            `;
 
-                // Add event listeners
-                document.getElementById('layer-stores').addEventListener('change', e => {{
-                    layers.stores = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-trade').addEventListener('change', e => {{
-                    layers.trade_areas = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-convenience').addEventListener('change', e => {{
-                    layers.convenience = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-competitors').addEventListener('change', e => {{
-                    layers.competitors = e.target.checked;
-                    renderMap();
-                }});
-
+            if (currentMode === 'current') {{
+                container.innerHTML = layersHTML;
             }} else if (currentMode === 'expansion') {{
                 const data = expansionData;
                 const minSales = data.candidates ? Math.min(...data.candidates.map(c => c.predicted_annual_sales)) : 0;
@@ -2064,56 +2033,37 @@ html_content = f"""
                 const minPop = data.candidates ? Math.min(...data.candidates.map(c => c.population)) : 0;
                 const maxPop = data.candidates ? Math.max(...data.candidates.map(c => c.population)) : 100000;
 
-                container.innerHTML = `
-                    <div class="section-header">Layer Controls</div>
-                    <div class="control-group">
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-candidates" ${{layers.candidates !== false ? 'checked' : ''}}>
-                            <label for="layer-candidates">Expansion Candidates</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-h3-hexagons" ${{layers.h3_hexagons ? 'checked' : ''}}>
-                            <label for="layer-h3-hexagons">H3 Heatmap (Sales)</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-current" ${{layers.current_stores !== false ? 'checked' : ''}}>
-                            <label for="layer-current">Current Stores</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-convenience-exp" ${{layers.convenience ? 'checked' : ''}}>
-                            <label for="layer-convenience-exp">Convenience Stores</label>
-                        </div>
-                        <div class="checkbox-control">
-                            <input type="checkbox" id="layer-competitors-exp" ${{layers.competitors ? 'checked' : ''}}>
-                            <label for="layer-competitors-exp">Competitors</label>
-                        </div>
-                    </div>
+                const defaultMinSales = Math.max(filters.min_sales || 500000, minSales);
+                const defaultMinPop = Math.max(filters.min_population || 5000, minPop);
 
+                // Update filters to use the defaults
+                filters.min_sales = defaultMinSales;
+                filters.min_population = defaultMinPop;
+
+                const refineHTML = `
                     <div class="divider"></div>
-
                     <div class="step-indicator">
                         <div class="step-number">1</div>
                         <div class="step-label">Refine</div>
                     </div>
-
                     <div class="slider-control">
                         <label for="min-sales">Minimum Annual Sales</label>
-                        <input type="range" id="min-sales" min="${{minSales}}" max="${{maxSales}}" value="${{filters.min_sales || minSales}}" step="1000">
-                        <div class="slider-value">$${{(filters.min_sales || minSales).toLocaleString()}}</div>
+                        <input type="range" id="min-sales" min="${{minSales}}" max="${{maxSales}}" value="${{defaultMinSales}}" step="1000">
+                        <div class="slider-value">$${{defaultMinSales.toLocaleString()}}</div>
                     </div>
                     <div class="slider-control">
                         <label for="min-pop">Minimum Population</label>
-                        <input type="range" id="min-pop" min="${{Math.round(minPop)}}" max="${{Math.round(maxPop)}}" value="${{Math.round(filters.min_population || minPop)}}" step="100">
-                        <div class="slider-value">${{Math.round(filters.min_population || minPop).toLocaleString()}}</div>
+                        <input type="range" id="min-pop" min="${{Math.round(minPop)}}" max="${{Math.round(maxPop)}}" value="${{Math.round(defaultMinPop)}}" step="100">
+                        <div class="slider-value">${{Math.round(defaultMinPop).toLocaleString()}}</div>
                     </div>
+                `;
 
+                const optimizeHTML = `
                     <div class="divider"></div>
-
                     <div class="step-indicator">
                         <div class="step-number">2</div>
                         <div class="step-label">Optimize</div>
                     </div>
-
                     <div class="number-control">
                         <label for="max-stores">Maximum New Stores</label>
                         <select id="max-stores">
@@ -2122,15 +2072,14 @@ html_content = f"""
                     </div>
                     <div class="slider-control">
                         <label for="min-dist-new">Min Distance Between New (miles)</label>
-                        <input type="range" id="min-dist-new" min="1" max="10" step="0.5" value="${{optimizationParams.min_dist_new}}">
+                        <input type="range" id="min-dist-new" min="1" max="3" step="0.5" value="${{optimizationParams.min_dist_new}}">
                         <div class="slider-value">${{optimizationParams.min_dist_new}} mi</div>
                     </div>
                     <div class="slider-control">
                         <label for="min-dist-existing">Min Distance from Existing (miles)</label>
-                        <input type="range" id="min-dist-existing" min="1" max="10" step="0.5" value="${{optimizationParams.min_dist_existing}}">
+                        <input type="range" id="min-dist-existing" min="1" max="3" step="0.5" value="${{optimizationParams.min_dist_existing}}">
                         <div class="slider-value">${{optimizationParams.min_dist_existing}} mi</div>
                     </div>
-
                     <div style="margin-top: 16px;">
                         <button class="btn btn-primary" onclick="runOptimization()">▶️ Run Optimization</button>
                         ${{optimizationResults ? '<button class="btn btn-secondary" style="margin-top: 8px;" onclick="clearOptimization()">Clear Results</button>' : ''}}
@@ -2138,29 +2087,42 @@ html_content = f"""
                     </div>
                 `;
 
-                // Add event listeners
-                // Layer controls
-                document.getElementById('layer-candidates').addEventListener('change', e => {{
-                    layers.candidates = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-h3-hexagons').addEventListener('change', e => {{
-                    layers.h3_hexagons = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-current').addEventListener('change', e => {{
-                    layers.current_stores = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-convenience-exp').addEventListener('change', e => {{
-                    layers.convenience = e.target.checked;
-                    renderMap();
-                }});
-                document.getElementById('layer-competitors-exp').addEventListener('change', e => {{
-                    layers.competitors = e.target.checked;
-                    renderMap();
-                }});
+                container.innerHTML = layersHTML + refineHTML + optimizeHTML;
+            }}
 
+            // Add event listeners (Shared)
+            const addListener = (id, handler) => {{
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', handler);
+            }};
+
+            addListener('layer-candidates', e => {{
+                layers.candidates = e.target.checked;
+                renderMap();
+            }});
+            addListener('layer-h3-hexagons', e => {{
+                layers.h3_hexagons = e.target.checked;
+                renderMap();
+            }});
+            addListener('layer-current', e => {{
+                layers.current_stores = e.target.checked;
+                renderMap();
+            }});
+            addListener('layer-candidate-isochrones', e => {{
+                layers.candidate_isochrones = e.target.checked;
+                renderMap();
+            }});
+            addListener('layer-convenience', e => {{
+                layers.convenience = e.target.checked;
+                renderMap();
+            }});
+            addListener('layer-competitors', e => {{
+                layers.competitors = e.target.checked;
+                renderMap();
+            }});
+
+            // Expansion Mode specific listeners
+            if (currentMode === 'expansion') {{
                 // Filters
                 document.getElementById('min-sales').addEventListener('input', e => {{
                     filters.min_sales = parseInt(e.target.value);
@@ -2185,7 +2147,6 @@ html_content = f"""
                     optimizationParams.min_dist_existing = parseFloat(e.target.value);
                     e.target.nextElementSibling.textContent = `${{optimizationParams.min_dist_existing}} mi`;
                 }});
-
             }}
         }}
 
@@ -2321,10 +2282,10 @@ html_content = f"""
                 {{ key: 'total_poi_count', label: 'Total POI Count' }},
                 {{ key: 'min_distance_to_existing', label: 'Min Distance to Existing (mi)' }},
                 {{ key: 'nearest_existing_store', label: 'Nearest Existing Store' }},
-                {{ key: 'within_convenience_isochrone', label: 'Within Convenience Isochrone' }},
-                {{ key: 'convenience_store_name', label: 'Convenience Store Name' }},
-                {{ key: 'convenience_city', label: 'Convenience City' }},
-                {{ key: 'convenience_drive_time', label: 'Convenience Drive Time (min)' }},
+                {{ key: 'within_convenience_isochrone', label: 'Within Partner Store Trade Area' }},
+                {{ key: 'convenience_store_name', label: 'Partner Store Name' }},
+                {{ key: 'convenience_city', label: 'Partner Store City' }},
+                {{ key: 'convenience_drive_time', label: 'Partner Store Drive Time (min)' }},
                 {{ key: 'center_lat', label: 'Center Latitude' }},
                 {{ key: 'center_lon', label: 'Center Longitude' }}
             ];
@@ -2403,10 +2364,10 @@ html_content = f"""
 
                 // Reset layer state for new mode
                 if (currentMode === 'current') {{
-                    layers = {{'stores': true, 'trade_areas': true, 'convenience': true, 'competitors': false}};
+                    layers = {{'candidates': false, 'h3_hexagons': true, 'current_stores': true, 'candidate_isochrones': false, 'convenience': false, 'competitors': false}};
                 }} else if (currentMode === 'expansion') {{
-                    layers = {{'candidates': true, 'h3_hexagons': true, 'current_stores': true, 'convenience': true, 'competitors': false}};
-                    filters = {{min_sales: null, min_population: null}};
+                    layers = {{'candidates': true, 'h3_hexagons': true, 'current_stores': true, 'candidate_isochrones': false, 'convenience': true, 'competitors': false}};
+                    filters = {{min_sales: 500000, min_population: 5000}};
                 }} else if (currentMode === 'chat') {{
                     // Chat mode - show placeholder
                     document.getElementById('controls-container').innerHTML = `

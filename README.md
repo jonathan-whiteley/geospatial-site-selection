@@ -75,38 +75,115 @@ geospatial-retail-site-selection/
 │   ├── 02_silver/                    # Data processing
 │   │   ├── clean_pois.ipynb          # POI cleaning and categorization
 │   │   ├── create_isochrones.ipynb   # Drive-time polygons (Valhalla API)
-│   │   ├── candidate_features_h3.ipynb          # H3 candidate features
-│   │   └── aggregate_existing_lce_features.ipynb # Existing store metrics
+│   │   └── candidate_features_h3.ipynb          # H3 candidate features
 │   └── 03_gold/                      # Feature engineering & viz prep
-│       ├── expansion_prediction.ipynb    # Sales predictions & scoring
-│       └── viz_layer_prep.ipynb          # Pre-computed viz tables
+│       ├── agg_h3_features_candidates.ipynb      # Candidate feature aggregation
+│       ├── agg_h3_features_current_stores.ipynb  # Existing store feature aggregation
+│       ├── predict_candidate_sales.ipynb         # Sales predictions & scoring
+│       └── viz_layer_prep.ipynb                  # Pre-computed viz tables
 └── exploration/                      # Analysis notebooks
     └── ...
 ```
 
 ## Data Pipeline
 
-### Bronze Layer
-- **Store Locations**: LCE store locations transformed from raw upload
-- **Census Boundaries**: State boundaries (TIGER/Line shapefiles)
-- **POIs**: Points of interest extracted from OpenStreetMap
+The pipeline follows a medallion architecture with Bronze → Silver → Gold layers. Each stage transforms and enriches data for downstream consumption.
 
-### Silver Layer
-- **Isochrones**: 5-minute drive-time polygons via Valhalla routing API (free public server)
-- **Cleaned POIs**: Categorized convenience stores and competitors with deduplication
-- **H3 Candidate Features**: CARTO spatial features joined to H3 grid cells
-- **Existing Store Metrics**: Aggregated features for current LCE locations
+### Bronze Layer - Raw Data Ingestion
 
-### Gold Layer
-- **Expansion Predictions**: Sales predictions, quality scoring, and partnership recommendations
-- **Viz Tables**: Pre-computed visualization layers with instant query performance
-  - `viz_existing_stores`: Current stores with demographics
-  - `viz_expansion_candidates`: Scored candidates with partnership flags
-  - `viz_convenience`: Convenience store isochrones with candidate proximity
-  - `viz_competitors`: Competitor locations
-  - `viz_h3_grid`: State-filtered H3 cells for map overlays
-  - `viz_network_metrics`: Pre-aggregated KPIs (singleton table)
-  - `viz_optimization_results`: Cached optimization runs (96 parameter combinations)
+**lce_locations.ipynb**
+- **Inputs:** `{catalog}.{bronze_schema}.lce_locations_raw` (manual upload)
+- **Outputs:** `{catalog}.{bronze_schema}.lce_locations_mass` (MA stores only)
+- **Process:** Filter to open MA stores, standardize columns, add store names
+
+**census_boundaries.ipynb**
+- **Inputs:** TIGER/Line API (state boundaries)
+- **Outputs:** `{catalog}.{bronze_schema}.census_states` (MA + training states)
+- **Process:** Download and parse state geometries
+
+**extract_pois.ipynb**
+- **Inputs:** OSM PBF file (Geofabrik), `{catalog}.{bronze_schema}.osm_data` volume
+- **Outputs:** `{catalog}.{bronze_schema}.pois_raw`
+- **Process:** Extract POIs using osmium and tag filters
+
+### Silver Layer - Data Processing
+
+**clean_pois.ipynb**
+- **Inputs:** `{catalog}.{bronze_schema}.pois_raw`
+- **Outputs:**
+  - `{catalog}.{silver_schema}.pois_competitors` (pizza chains)
+  - `{catalog}.{silver_schema}.pois_convenience` (7-Eleven, etc.)
+- **Process:** Categorize, deduplicate, filter by state
+
+**create_isochrones.ipynb**
+- **Inputs:**
+  - `{catalog}.{bronze_schema}.lce_locations_mass`
+  - `{catalog}.{silver_schema}.pois_convenience`
+  - `{catalog}.{silver_schema}.whitespace_locations` (candidate grid)
+- **Outputs:**
+  - `{catalog}.{silver_schema}.isochrones_lce` (existing store trade areas)
+  - `{catalog}.{silver_schema}.isochrones_convenience` (convenience trade areas)
+  - `{catalog}.{silver_schema}.candidate_isochrones` (expansion candidate trade areas)
+- **Process:** Call Valhalla API for 5-min drive-time polygons
+
+**candidate_features_h3.ipynb**
+- **Inputs:** CARTO Marketplace H3 features (via Databricks Marketplace)
+- **Outputs:** `{catalog}.{silver_schema}.h3_features_clean`
+- **Process:** Join CARTO data, derive POI counts, activity index, urbanity
+
+### Gold Layer - Feature Engineering & Predictions
+
+**agg_h3_features_candidates.ipynb**
+- **Inputs:**
+  - `{catalog}.{silver_schema}.candidate_isochrones`
+  - `{catalog}.{silver_schema}.h3_features_clean`
+  - `{catalog}.{silver_schema}.isochrones_lce` (for exclusion)
+- **Outputs:** `{catalog}.{gold_schema}.candidates_features_agg`
+- **Process:** H3 polyfill, aggregate features, exclude overlaps with existing stores
+
+**agg_h3_features_current_stores.ipynb**
+- **Inputs:**
+  - `{catalog}.{silver_schema}.isochrones_lce`
+  - `{catalog}.{silver_schema}.h3_features_clean`
+  - `{catalog}.{bronze_schema}.current_stores_ne` (sales data)
+- **Outputs:** `{catalog}.{gold_schema}.current_stores_features_agg`
+- **Process:** H3 polyfill, aggregate features, join sales data
+
+**predict_candidate_sales.ipynb**
+- **Inputs:**
+  - `{catalog}.{gold_schema}.current_stores_features_agg` (training data)
+  - `{catalog}.{gold_schema}.candidates_features_agg` (inference data)
+- **Outputs:**
+  - `{catalog}.{gold_schema}.candidates_finalized` (ranked candidates with predictions)
+  - `{catalog}.{gold_schema}.sales_prediction_model` (MLflow model)
+- **Process:** Train XGBoost, spatial CV, predict sales, rank candidates
+
+**viz_layer_prep.ipynb**
+- **Inputs:**
+  - `{catalog}.{gold_schema}.candidates_finalized`
+  - `{catalog}.{silver_schema}.whitespace_locations`
+  - `{catalog}.{silver_schema}.current_stores_features_agg`
+  - `{catalog}.{silver_schema}.pois_competitors`
+  - `{catalog}.{silver_schema}.isochrones_convenience`
+  - `{catalog}.{bronze_schema}.census_states`
+- **Outputs:**
+  - `{catalog}.{gold_schema}.viz_h3_grid`
+  - `{catalog}.{gold_schema}.viz_expansion_candidates`
+  - `{catalog}.{gold_schema}.viz_existing_stores`
+  - `{catalog}.{gold_schema}.viz_competitors`
+  - `{catalog}.{gold_schema}.viz_convenience`
+  - `{catalog}.{gold_schema}.viz_network_metrics`
+  - `{catalog}.{gold_schema}.viz_optimization_results`
+- **Process:** Pre-compute distances, proximity, optimization results, network KPIs
+
+### Pipeline Notes
+
+**Optimization Opportunities Identified:**
+
+See `docs/gold_layer_inefficiency_plan.md` for detailed analysis and implementation plan for performance optimizations including:
+- Pre-computed distance calculations to eliminate redundant joins
+- Optimized parameter grid for pre-computation (reduced from 96 to 27 combinations)
+- Streamlined data flow between silver and gold layers
 
 ## Data Sources
 

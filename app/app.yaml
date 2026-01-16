@@ -14,7 +14,7 @@ env:
   - name: DATABRICKS_HTTP_PATH
     value: /sql/1.0/warehouses/0168e23e24e6ae10
   - name: DATABRICKS_TOKEN
-    value_from: secret/databricks_token
+    valueFrom: secret
   - name: DATABRICKS_CATALOG
     value: jdub_demo
   - name: DATABRICKS_BRONZE_SCHEMA
