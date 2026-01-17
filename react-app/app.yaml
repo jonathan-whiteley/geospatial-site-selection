@@ -1,0 +1,14 @@
+command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+env:
+  - name: DATABRICKS_SERVER_HOSTNAME
+    value: fe-vm-jdub-vm-serverless.cloud.databricks.com
+  - name: DATABRICKS_HTTP_PATH
+    value: /sql/1.0/warehouses/0168e23e24e6ae10
+  - name: DATABRICKS_CATALOG
+    value: jdub_demo
+  - name: DATABRICKS_GOLD_SCHEMA
+    value: geo_gold
+  - name: DATABRICKS_SILVER_SCHEMA
+    value: geo_silver
+  - name: DATABRICKS_BRONZE_SCHEMA
+    value: geo_bronze
