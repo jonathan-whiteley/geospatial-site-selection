@@ -1,17 +1,21 @@
 """Optimization API endpoints."""
-from typing import List
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Optional
 
 from services.data_service import get_data_service
-from models.schemas import (
-    OptimizationParams, OptimizationResult,
-    OptimizationLookupResponse, ExpansionCandidate
-)
 
 router = APIRouter(prefix="/optimization", tags=["optimization"])
 
 
-@router.get("/results", response_model=List[OptimizationResult])
+class OptimizationParams(BaseModel):
+    """Input parameters for optimization lookup."""
+    max_stores: int = 50
+    min_dist_new: float = 2.0
+    min_dist_existing: float = 2.0
+
+
+@router.get("/results")
 async def get_optimization_results():
     """
     Get all pre-computed optimization results.
@@ -29,10 +33,12 @@ async def get_optimization_results():
         results = service.load_optimization_results()
         return results
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/lookup", response_model=OptimizationLookupResponse)
+@router.post("/lookup")
 async def lookup_optimization(params: OptimizationParams):
     """
     Lookup pre-computed optimization results for given parameters.
@@ -54,13 +60,9 @@ async def lookup_optimization(params: OptimizationParams):
             min_dist_new=params.min_dist_new,
             min_dist_existing=params.min_dist_existing
         )
-
-        return OptimizationLookupResponse(
-            selected_candidates=[
-                ExpansionCandidate(**c) for c in result['selected_candidates']
-            ],
-            snapped_params=OptimizationParams(**result['snapped_params']),
-            total_sales=result['total_sales']
-        )
+        # Return raw dict to avoid Pydantic validation issues with DB types
+        return result
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

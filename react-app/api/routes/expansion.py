@@ -58,7 +58,7 @@ async def get_expansion_candidates(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/data", response_model=ExpansionDataResponse)
+@router.get("/data")
 async def get_expansion_data():
     """
     Get all expansion analysis data in a single request.
@@ -70,6 +70,9 @@ async def get_expansion_data():
     try:
         service = get_data_service()
         data = service.load_expansion_data()
-        return ExpansionDataResponse(**data)
+        # Return raw dict to avoid Pydantic validation issues with DB types
+        return data
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

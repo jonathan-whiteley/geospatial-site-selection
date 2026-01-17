@@ -1,57 +1,76 @@
-"""Databricks SQL connection with Service Principal authentication support."""
+"""Databricks SQL connection with Service Principal authentication for Databricks Apps."""
 import os
 from contextlib import contextmanager
 from typing import Generator, Any
 
 import pandas as pd
 from databricks import sql as dbsql
-from databricks.sdk.config import Config
+from databricks.sdk.core import Config
 
 from core.config import get_settings
 
 
 class DatabricksDB:
-    """Database connection manager supporting both PAT and Service Principal auth."""
+    """Database connection manager using Databricks Apps Service Principal auth."""
 
     def __init__(self):
         self.settings = get_settings()
-        self._connection = None
+        self._config = None
+        self._log_auth_info()
 
-    def _get_credentials_provider(self):
-        """Get credentials provider for Service Principal authentication."""
-        config = Config()
-        return lambda: config.authenticate()
+    def _log_auth_info(self):
+        """Log authentication configuration."""
+        print("=== Database Configuration ===")
+        print(f"HTTP Path: {self.settings.databricks_http_path}")
+        print(f"Catalog: {self.settings.databricks_catalog}")
+        print(f"DATABRICKS_CLIENT_ID present: {bool(os.environ.get('DATABRICKS_CLIENT_ID'))}")
+        print(f"DATABRICKS_CLIENT_SECRET present: {bool(os.environ.get('DATABRICKS_CLIENT_SECRET'))}")
+
+    def _get_config(self) -> Config:
+        """Get or create Config for OAuth authentication."""
+        if self._config is None:
+            # Config auto-detects credentials from environment in Databricks Apps
+            self._config = Config()
+            print(f"SDK Config initialized:")
+            print(f"  Host: {self._config.host}")
+            print(f"  Auth type: {self._config.auth_type}")
+        return self._config
 
     @contextmanager
     def get_connection(self) -> Generator[Any, None, None]:
         """
-        Get a Databricks SQL connection.
+        Get a Databricks SQL connection using Service Principal OAuth.
 
-        In Databricks Apps: Uses DATABRICKS_CLIENT_ID/SECRET (Service Principal)
-        In development: Uses DATABRICKS_TOKEN (PAT)
+        In Databricks Apps, Config() automatically uses the injected
+        DATABRICKS_CLIENT_ID and DATABRICKS_CLIENT_SECRET.
         """
         connection = None
         try:
-            if self.settings.is_service_principal:
-                # Service Principal authentication (Databricks Apps)
-                connection = dbsql.connect(
-                    server_hostname=self.settings.databricks_server_hostname,
-                    http_path=self.settings.databricks_http_path,
-                    credentials_provider=self._get_credentials_provider(),
-                    _use_arrow_native_complex_types=False
-                )
-            else:
-                # PAT token authentication (local development)
-                connection = dbsql.connect(
-                    server_hostname=self.settings.databricks_server_hostname,
-                    http_path=self.settings.databricks_http_path,
-                    access_token=self.settings.databricks_token,
-                    _use_arrow_native_complex_types=False
-                )
+            # Get the SDK config (handles OAuth automatically)
+            cfg = self._get_config()
+
+            # Create connection using the SDK's credential provider
+            # Note: credentials_provider must be a callable that returns the auth function
+            connection = dbsql.connect(
+                server_hostname=cfg.host,
+                http_path=self.settings.databricks_http_path,
+                credentials_provider=lambda: cfg.authenticate,
+                _use_arrow_native_complex_types=False
+            )
+            print("SQL connection established")
             yield connection
+        except Exception as e:
+            print(f"Connection error: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
         finally:
             if connection:
-                connection.close()
+                try:
+                    connection.close()
+                    print("SQL connection closed")
+                except Exception:
+                    pass
 
     def execute_query(self, sql_query: str) -> pd.DataFrame:
         """
@@ -71,11 +90,13 @@ class DatabricksDB:
                     data = cursor.fetchall()
                     df = pd.DataFrame(data, columns=columns)
 
-                    # Convert numeric columns
+                    # Convert numeric columns where possible
                     for col in df.columns:
                         try:
-                            df[col] = pd.to_numeric(df[col], errors='ignore')
-                        except Exception:
+                            converted = pd.to_numeric(df[col])
+                            df[col] = converted
+                        except (ValueError, TypeError):
+                            # Column cannot be converted to numeric, keep original
                             pass
 
                     return df

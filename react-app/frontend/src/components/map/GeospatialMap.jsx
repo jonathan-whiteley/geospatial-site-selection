@@ -238,6 +238,8 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
             color: '#dc2626',
             weight: 2,
             fillOpacity: 0.8,
+            // Pass sales data for cluster aggregation
+            predicted_annual_sales: candidate.predicted_annual_sales || 0,
           }}
           eventHandlers={{
             click: () => onStoreClick?.(candidate),

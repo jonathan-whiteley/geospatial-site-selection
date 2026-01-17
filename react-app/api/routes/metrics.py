@@ -2,12 +2,11 @@
 from fastapi import APIRouter, HTTPException
 
 from services.data_service import get_data_service
-from models.schemas import NetworkMetrics
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 
-@router.get("/network", response_model=NetworkMetrics)
+@router.get("/network")
 async def get_network_metrics():
     """
     Get pre-computed network-wide metrics.
@@ -19,6 +18,9 @@ async def get_network_metrics():
     try:
         service = get_data_service()
         metrics = service.load_network_metrics()
-        return NetworkMetrics(**metrics) if metrics else NetworkMetrics()
+        # Return raw dict to avoid Pydantic validation issues with DB types
+        return metrics if metrics else {}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

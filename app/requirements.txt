@@ -1,8 +1,0 @@
-streamlit
-databricks-sql-connector
-databricks-sdk
-pandas
-folium
-streamlit-folium
-requests
-plotly

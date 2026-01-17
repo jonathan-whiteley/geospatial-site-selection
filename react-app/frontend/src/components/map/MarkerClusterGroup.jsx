@@ -19,8 +19,8 @@ export default function MarkerClusterGroup({ children }) {
         const markers = clusterObj.getAllChildMarkers()
         let totalSales = 0
         markers.forEach((m) => {
-          // Get sales from marker options or popup content
-          const sales = m.options?.predicted_sales || 0
+          // Get sales from marker options (predicted_annual_sales)
+          const sales = m.options?.predicted_annual_sales || 0
           totalSales += sales
         })
 
@@ -76,7 +76,7 @@ export default function MarkerClusterGroup({ children }) {
             const marker = L.circleMarker(center, {
               ...pathOptions,
               radius: 8,
-              predicted_sales: child.props.pathOptions?.predicted_sales ||
+              predicted_annual_sales: child.props.pathOptions?.predicted_annual_sales ||
                 extractSalesFromChild(child),
             })
 

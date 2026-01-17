@@ -1,17 +1,12 @@
 """Store-related API endpoints."""
-from typing import List
 from fastapi import APIRouter, HTTPException
 
 from services.data_service import get_data_service
-from models.schemas import (
-    Store, Isochrone, ConvenienceIsochrone,
-    ConvenienceStore, Competitor, CurrentNetworkResponse
-)
 
 router = APIRouter(prefix="/stores", tags=["stores"])
 
 
-@router.get("/current", response_model=List[Store])
+@router.get("/current")
 async def get_current_stores():
     """
     Get all current store locations.
@@ -24,10 +19,12 @@ async def get_current_stores():
         data = service.load_current_network_data()
         return data.get('stores', [])
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/isochrones", response_model=List[Isochrone])
+@router.get("/isochrones")
 async def get_store_isochrones():
     """
     Get LCE store trade area isochrones (drive time polygons).
@@ -40,10 +37,12 @@ async def get_store_isochrones():
         data = service.load_current_network_data()
         return data.get('isochrones', [])
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/convenience", response_model=List[ConvenienceIsochrone])
+@router.get("/convenience")
 async def get_convenience_isochrones():
     """
     Get convenience store trade area isochrones with candidate info.
@@ -56,10 +55,12 @@ async def get_convenience_isochrones():
         data = service.load_current_network_data()
         return data.get('convenience_isochrones', [])
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/convenience/stores", response_model=List[ConvenienceStore])
+@router.get("/convenience/stores")
 async def get_convenience_stores():
     """
     Get potential partner convenience store locations.
@@ -72,10 +73,12 @@ async def get_convenience_stores():
         data = service.load_current_network_data()
         return data.get('convenience_stores', [])
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/competitors", response_model=List[Competitor])
+@router.get("/competitors")
 async def get_competitors():
     """
     Get competitor store locations.
@@ -88,10 +91,12 @@ async def get_competitors():
         data = service.load_current_network_data()
         return data.get('competitors', [])
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/network", response_model=CurrentNetworkResponse)
+@router.get("/network")
 async def get_full_network():
     """
     Get all current network data in a single request.
@@ -102,6 +107,9 @@ async def get_full_network():
     try:
         service = get_data_service()
         data = service.load_current_network_data()
-        return CurrentNetworkResponse(**data)
+        # Return raw dict to avoid Pydantic validation issues with DB types
+        return data
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

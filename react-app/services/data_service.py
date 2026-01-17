@@ -1,9 +1,45 @@
 """Data service for loading geospatial data from Databricks."""
 import json
+import math
 from typing import Dict, Any, List, Optional
+from decimal import Decimal
 
 from core.config import get_settings
 from core.database import get_db
+
+
+def sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively sanitize data for JSON serialization.
+
+    Converts:
+    - NaN, Infinity, -Infinity floats to None
+    - Decimal to float
+    - Other non-JSON-serializable types to strings
+    """
+    if obj is None:
+        return None
+    elif isinstance(obj, dict):
+        return {k: sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    elif isinstance(obj, Decimal):
+        float_val = float(obj)
+        if math.isnan(float_val) or math.isinf(float_val):
+            return None
+        return float_val
+    elif isinstance(obj, (int, str, bool)):
+        return obj
+    else:
+        # Try to convert to string for unknown types
+        try:
+            return str(obj)
+        except Exception:
+            return None
 
 
 class DataService:
@@ -111,7 +147,7 @@ class DataService:
         except Exception as e:
             print(f"ERROR loading MA boundary: {str(e)}")
 
-        return result
+        return sanitize_for_json(result)
 
     def load_expansion_data(self) -> Dict[str, Any]:
         """Load all data for Expansion Analysis mode from viz_* gold tables."""
@@ -193,7 +229,7 @@ class DataService:
         except Exception as e:
             print(f"ERROR loading competitors: {str(e)}")
 
-        return result
+        return sanitize_for_json(result)
 
     def load_optimization_results(self) -> List[Dict[str, Any]]:
         """Load pre-computed optimization results for O(1) lookup."""
@@ -208,7 +244,7 @@ class DataService:
             """)
             results = results_df.to_dict('records') if not results_df.empty else []
             print(f"Loaded {len(results)} optimization result combinations")
-            return results
+            return sanitize_for_json(results)
         except Exception as e:
             print(f"ERROR loading optimization results: {str(e)}")
             return []
@@ -224,7 +260,7 @@ class DataService:
             """)
             if not metrics_df.empty:
                 print("Loaded network metrics")
-                return metrics_df.to_dict('records')[0]
+                return sanitize_for_json(metrics_df.to_dict('records')[0])
             return {}
         except Exception as e:
             print(f"ERROR loading network metrics: {str(e)}")
@@ -307,11 +343,11 @@ class DataService:
               f"dist_exist={snapped['min_dist_existing']} -> "
               f"{len(selected)} stores")
 
-        return {
+        return sanitize_for_json({
             'selected_candidates': selected,
             'snapped_params': snapped,
             'total_sales': result.get('total_predicted_sales', 0)
-        }
+        })
 
 
 # Singleton instance
