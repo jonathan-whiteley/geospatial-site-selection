@@ -1,78 +1,120 @@
 import React from 'react'
+import { Building2, MapPin, Store, Building } from 'lucide-react'
 import { formatSales } from '../../lib/utils'
 
 /**
- * Map legend showing marker colors
+ * Legend item component
+ */
+function LegendItem({ color, label, icon: Icon }) {
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      <span
+        className="w-3.5 h-3.5 rounded-full shadow-sm flex-shrink-0"
+        style={{
+          backgroundColor: color,
+          border: '2px solid white',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+        }}
+      />
+      {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
+      <span className="text-gray-600">{label}</span>
+    </div>
+  )
+}
+
+/**
+ * Gradient legend item for H3 heatmap
+ */
+function GradientLegendItem({ label }) {
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      <span
+        className="w-3.5 h-3.5 rounded-sm shadow-sm flex-shrink-0"
+        style={{
+          background: 'linear-gradient(135deg, #fff 0%, #fca5a5 50%, #ef4444 100%)',
+          border: '1.5px solid #ef4444',
+        }}
+      />
+      <span className="text-gray-600">{label}</span>
+    </div>
+  )
+}
+
+/**
+ * Map legend showing layer colors - modernized with glassmorphism
  */
 export function MapLegend() {
   const items = [
     {
+      label: 'LCE Stores',
+      color: '#10b981',
+      icon: Building2,
+    },
+    {
       label: 'Expansion Candidates',
       color: '#ef4444',
-      borderColor: '#dc2626',
+      icon: MapPin,
     },
     {
-      label: 'Demand Heatmap - H3',
+      label: 'Demand Heatmap',
       gradient: true,
-      borderColor: '#dc2626',
     },
     {
-      label: 'Current Stores',
-      color: '#34d399',
-      borderColor: '#10b981',
-    },
-    {
-      label: 'Potential Partner Stores',
-      color: '#60a5fa',
-      borderColor: '#3b82f6',
+      label: 'Partner Stores',
+      color: '#3b82f6',
+      icon: Store,
     },
     {
       label: 'Competitors',
       color: '#a855f7',
-      borderColor: '#9333ea',
+      icon: Building,
     },
   ]
 
   return (
-    <div className="absolute top-6 right-6 bg-white p-4 rounded-lg border border-gray-200 shadow-md z-[500]">
-      <h4 className="text-sm font-semibold text-gray-700 mb-3">Map Legend</h4>
-      <div className="space-y-2">
-        {items.map((item, idx) => (
-          <div key={idx} className="flex items-center gap-2 text-sm text-gray-700">
-            <span
-              className="w-3 h-3 rounded-full border-2"
-              style={{
-                background: item.gradient
-                  ? 'linear-gradient(135deg, #fff 0%, #ff6666 50%, #ff0000 100%)'
-                  : item.color,
-                borderColor: item.borderColor,
-              }}
+    <div className="absolute top-4 right-4 glass-panel rounded-lg shadow-glass p-4 z-[500] min-w-[180px]">
+      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+        <span className="w-1 h-4 bg-brand-orange rounded-full" />
+        Map Layers
+      </h4>
+      <div className="space-y-2.5">
+        {items.map((item, idx) =>
+          item.gradient ? (
+            <GradientLegendItem key={idx} label={item.label} />
+          ) : (
+            <LegendItem
+              key={idx}
+              color={item.color}
+              label={item.label}
+              icon={item.icon}
             />
-            <span>{item.label}</span>
-          </div>
-        ))}
+          )
+        )}
       </div>
     </div>
   )
 }
 
 /**
- * Sales gradient legend
+ * Sales gradient legend - modernized
  */
 export function SalesGradientLegend({ salesRange }) {
   return (
-    <div className="absolute bottom-8 right-6 bg-white p-3 rounded-lg border border-gray-200 shadow-md z-[500] min-w-[180px]">
-      <div className="text-xs font-semibold text-gray-700 mb-2">
+    <div className="absolute bottom-6 right-4 glass-panel rounded-lg shadow-glass p-3 z-[500] min-w-[200px]">
+      <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
+        <span className="w-1 h-3 bg-red-500 rounded-full" />
         Predicted Annual Sales
       </div>
       <div
-        className="h-3 rounded border border-gray-200 mb-1"
+        className="h-3 rounded-md mb-1.5 shadow-inner"
         style={{
-          background: 'linear-gradient(to right, rgb(255, 255, 255), rgb(255, 200, 200), rgb(255, 100, 100), rgb(255, 0, 0))',
+          background: 'linear-gradient(to right, rgb(255, 255, 255), rgb(254, 202, 202), rgb(252, 165, 165), rgb(248, 113, 113), rgb(239, 68, 68))',
+          border: '1px solid #e5e7eb',
         }}
       />
-      <div className="flex justify-between text-[10px] text-gray-500">
+      <div className="flex justify-between text-[10px] text-gray-500 font-medium">
         <span>{formatSales(salesRange.min)}</span>
+        <span className="text-gray-400">|</span>
         <span>{formatSales(salesRange.max)}</span>
       </div>
     </div>

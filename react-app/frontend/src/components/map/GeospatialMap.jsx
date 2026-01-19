@@ -49,6 +49,7 @@ function IsochroneLayer({ isochrones }) {
               key={`iso-${idx}`}
               data={geojson}
               pane="isochrones"
+              interactive={false}
               style={{
                 color: '#10b981',
                 weight: 1.5,
@@ -85,6 +86,7 @@ function ConvenienceIsochroneLayer({ isochrones, visible }) {
               key={`conv-iso-${idx}`}
               data={geojson}
               pane="isochrones"
+              interactive={false}
               style={{
                 color: '#3b82f6',
                 weight: 1.5,
@@ -170,7 +172,7 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
           radius={8}
           pathOptions={{
             fillColor: '#10b981',
-            color: '#065f46',
+            color: '#ffffff',
             weight: 2,
             fillOpacity: 0.9,
           }}
@@ -178,13 +180,20 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
             click: () => onStoreClick?.(store),
           }}
         >
-          <Popup>
-            <div>
-              <strong>Store #{store.store_number}</strong><br />
-              {store.city}, {store.state}<br />
-              <hr style={{ margin: '5px 0' }} />
-              <strong>Population:</strong> {Math.round(store.population || 0).toLocaleString()}<br />
-              <strong>POI Count:</strong> {(store.total_poi_count || 0).toLocaleString()}
+          <Popup className="modern-popup">
+            <div className="min-w-[200px]">
+              <div className="font-semibold text-gray-900">Store #{store.store_number}</div>
+              <div className="text-sm text-gray-500 mb-2">{store.city}, {store.state}</div>
+              <div className="border-t border-gray-100 pt-2 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Population:</span>
+                  <span className="font-medium">{Math.round(store.population || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">POI Count:</span>
+                  <span className="font-medium">{(store.total_poi_count || 0).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
           </Popup>
         </CircleMarker>
@@ -207,6 +216,7 @@ function CandidateIsochroneLayer({ candidates, visible }) {
           center={[candidate.latitude, candidate.longitude]}
           pane="isochrones"
           radius={2000}
+          interactive={false}
           pathOptions={{
             color: '#fca5a5',
             fillColor: '#ef4444',
@@ -235,9 +245,9 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
           radius={8}
           pathOptions={{
             fillColor: '#ef4444',
-            color: '#dc2626',
+            color: '#ffffff',
             weight: 2,
-            fillOpacity: 0.8,
+            fillOpacity: 0.85,
             // Pass sales data for cluster aggregation
             predicted_annual_sales: candidate.predicted_annual_sales || 0,
           }}
@@ -245,11 +255,20 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
             click: () => onStoreClick?.(candidate),
           }}
         >
-          <Popup>
-            <div>
-              <strong>Expansion Location {candidate.store_number}</strong><br />
-              <strong>Predicted Sales:</strong> ${(candidate.predicted_annual_sales || 0).toLocaleString()}<br />
-              <strong>Population:</strong> {Math.round(candidate.population || 0).toLocaleString()}
+          <Popup className="modern-popup">
+            <div className="min-w-[220px]">
+              <div className="font-semibold text-gray-900">Expansion Candidate</div>
+              <div className="text-sm text-gray-500 mb-2">Location {candidate.store_number}</div>
+              <div className="border-t border-gray-100 pt-2 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Predicted Sales:</span>
+                  <span className="font-medium text-emerald-600">${(candidate.predicted_annual_sales || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Population:</span>
+                  <span className="font-medium">{Math.round(candidate.population || 0).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
           </Popup>
         </CircleMarker>
@@ -271,16 +290,19 @@ function ConvenienceStoreMarkers({ stores, visible }) {
           key={`conv-${idx}`}
           center={[store.latitude, store.longitude]}
           pane="markers"
-          radius={5}
+          radius={6}
           pathOptions={{
             fillColor: '#3b82f6',
-            color: '#1e3a8a',
+            color: '#ffffff',
             weight: 2,
             fillOpacity: 0.9,
           }}
         >
-          <Popup>
-            <strong>{store.name}</strong>
+          <Popup className="modern-popup">
+            <div className="min-w-[150px]">
+              <div className="font-semibold text-gray-900">{store.name}</div>
+              <div className="text-xs text-blue-600 mt-1">Partner Store</div>
+            </div>
           </Popup>
         </CircleMarker>
       ))}
@@ -301,16 +323,19 @@ function CompetitorMarkers({ competitors, visible }) {
           key={`comp-${idx}`}
           center={[comp.latitude, comp.longitude]}
           pane="markers"
-          radius={5}
+          radius={6}
           pathOptions={{
             fillColor: '#a855f7',
-            color: '#9333ea',
+            color: '#ffffff',
             weight: 2,
-            fillOpacity: 0.7,
+            fillOpacity: 0.85,
           }}
         >
-          <Popup>
-            <strong>{comp.name}</strong>
+          <Popup className="modern-popup">
+            <div className="min-w-[150px]">
+              <div className="font-semibold text-gray-900">{comp.name}</div>
+              <div className="text-xs text-purple-600 mt-1">Competitor</div>
+            </div>
           </Popup>
         </CircleMarker>
       ))}
@@ -356,10 +381,10 @@ export function GeospatialMap({
       >
         <MapPanes />
 
-        {/* Dark tile layer */}
+        {/* Light tile layer (CartoDB Positron) */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           maxZoom={20}
         />
 

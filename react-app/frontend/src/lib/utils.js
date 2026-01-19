@@ -60,3 +60,34 @@ export function snapToGrid(value, grid) {
 export function formatNumber(num) {
   return Math.round(num).toLocaleString()
 }
+
+/**
+ * Format currency value (e.g., $1.2M, $500K, $1,234)
+ */
+export function formatCurrency(amount) {
+  if (amount >= 1000000) {
+    return '$' + (amount / 1000000).toFixed(1) + 'M'
+  } else if (amount >= 1000) {
+    return '$' + (amount / 1000).toFixed(0) + 'K'
+  }
+  return '$' + Math.round(amount).toLocaleString()
+}
+
+/**
+ * Format percentage (e.g., 85.5%)
+ */
+export function formatPercent(value, decimals = 1) {
+  return value.toFixed(decimals) + '%'
+}
+
+/**
+ * Format population (e.g., 45.2K)
+ */
+export function formatPopulation(pop) {
+  if (pop >= 1000000) {
+    return (pop / 1000000).toFixed(1) + 'M'
+  } else if (pop >= 1000) {
+    return (pop / 1000).toFixed(1) + 'K'
+  }
+  return pop.toLocaleString()
+}

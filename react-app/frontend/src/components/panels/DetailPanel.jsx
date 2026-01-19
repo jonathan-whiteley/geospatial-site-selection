@@ -1,100 +1,95 @@
 import React from 'react'
-import { X } from 'lucide-react'
-import { cn, formatNumber } from '../../lib/utils'
+import { X, MapPin, DollarSign, Users, Building2, Store, Building } from 'lucide-react'
+import { cn, formatNumber, formatCurrency } from '../../lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card'
 
 /**
- * Stat card component
+ * Metric card for detail panel
  */
-function StatCard({ label, value }) {
+function MetricCard({ label, value, icon: Icon }) {
   return (
-    <div className="bg-gray-50 rounded-lg p-3 mb-2">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <div className="text-base font-semibold text-gray-700">{value}</div>
+    <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
+      {Icon && <Icon className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+      <div className="min-w-0">
+        <div className="text-xs text-gray-500">{label}</div>
+        <div className="text-sm font-semibold text-gray-700 truncate">{value}</div>
+      </div>
     </div>
   )
 }
 
 /**
- * Metric row component
+ * Partner strategy recommendation card
  */
-function MetricRow({ label, value }) {
+function PartnerStrategyCard({ storeData }) {
   return (
-    <div className="flex justify-between items-center mb-3">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className="text-sm font-semibold text-gray-700">{value}</span>
-    </div>
+    <Card className="border-l-4 border-l-blue-500 bg-blue-50/50">
+      <CardContent className="py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Store className="w-5 h-5 text-blue-600" />
+          <span className="font-semibold text-blue-900">Partner Strategy</span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Partner with <strong>{storeData.convenience_store_name || '7-Eleven'}</strong> in{' '}
+          {storeData.convenience_city || 'nearby location'}
+        </p>
+        <div className="bg-white/60 rounded-lg p-3 space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Drive Time</span>
+            <span className="font-semibold text-gray-700">{storeData.convenience_drive_time || 5} min</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Strategy</span>
+            <span className="font-semibold text-gray-700">Micro-fulfillment</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          <strong>Rationale:</strong> Existing foot traffic and infrastructure reduces setup costs.
+          Ideal for quick market entry with lower capital investment.
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 
 /**
- * Recommendation card component
+ * New build strategy recommendation card
  */
-function RecommendationCard({ isPartner, storeData }) {
-  if (isPartner) {
-    return (
-      <div className="bg-gradient-to-br from-blue-100 to-blue-200 border-2 border-blue-500 rounded-xl p-4 my-4">
-        <div className="text-xs font-semibold uppercase tracking-wide text-blue-900 mb-2">
-          Fulfillment Recommendation
-        </div>
-        <div className="text-lg font-bold text-blue-900 mb-3 flex items-center gap-2">
-          Partner with Convenience Store
-        </div>
-        <div className="text-sm text-blue-800 mb-3 leading-relaxed">
-          This location falls within a 5-minute drive time of an existing convenience store,
-          making it an ideal partnership opportunity.
-        </div>
-        <div className="bg-white/60 rounded-lg p-3 space-y-2">
-          <RecommendationDetail label="Partner Store" value={storeData.convenience_store_name || '7-Eleven'} />
-          <RecommendationDetail label="Location" value={storeData.convenience_city || 'N/A'} />
-          <RecommendationDetail label="Drive Time" value={`${storeData.convenience_drive_time || 5} minutes`} />
-          <RecommendationDetail label="Strategy" value="Micro-fulfillment" />
-        </div>
-      </div>
-    )
-  }
-
+function NewBuildStrategyCard({ storeData }) {
   return (
-    <div className="bg-gradient-to-br from-amber-100 to-amber-200 border-2 border-amber-500 rounded-xl p-4 my-4">
-      <div className="text-xs font-semibold uppercase tracking-wide text-amber-900 mb-2">
-        Fulfillment Recommendation
-      </div>
-      <div className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2">
-        Open New Store
-      </div>
-      <div className="text-sm text-amber-800 mb-3 leading-relaxed">
-        This location is not within a 5-minute drive time of any existing convenience stores.
-        Building a new store would provide optimal market coverage and customer access.
-      </div>
-      <div className="bg-white/60 rounded-lg p-3 space-y-2">
-        <RecommendationDetail label="Strategy" value="New Build" />
-        <RecommendationDetail label="Nearest LCE Store" value={`#${storeData.nearest_existing_store || 'N/A'}`} />
-        <RecommendationDetail
-          label="Distance"
-          value={storeData.min_distance_to_existing
+    <Card className="border-l-4 border-l-brand-orange bg-orange-50/50">
+      <CardContent className="py-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Building className="w-5 h-5 text-brand-orange" />
+          <span className="font-semibold text-orange-900">New Build Strategy</span>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          {storeData.min_distance_to_existing
             ? `${storeData.min_distance_to_existing.toFixed(1)} miles`
-            : 'N/A'
-          }
-        />
-        <RecommendationDetail label="Opportunity" value="Capture untapped market" />
-      </div>
-    </div>
+            : 'No LCE stores'
+          } to nearest existing location
+        </p>
+        <div className="bg-white/60 rounded-lg p-3 space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Nearest Store</span>
+            <span className="font-semibold text-gray-700">#{storeData.nearest_existing_store || 'N/A'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Strategy</span>
+            <span className="font-semibold text-gray-700">Standalone Build</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-3">
+          <strong>Rationale:</strong> High predicted sales of {formatCurrency(storeData.predicted_annual_sales || 0)} justifies
+          standalone investment. Full brand control and optimal customer experience.
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 
 /**
- * Recommendation detail row
- */
-function RecommendationDetail({ label, value }) {
-  return (
-    <div className="flex justify-between text-xs">
-      <span className="text-gray-500 font-medium">{label}</span>
-      <span className="text-gray-700 font-semibold">{value}</span>
-    </div>
-  )
-}
-
-/**
- * Detail panel component with slide animation
+ * Detail panel component - slides from LEFT
  */
 export function DetailPanel({ store, isOpen, onClose, mode }) {
   if (!store) return null
@@ -106,75 +101,112 @@ export function DetailPanel({ store, isOpen, onClose, mode }) {
   return (
     <div
       className={cn(
-        'fixed right-0 top-16 w-96 h-[calc(100vh-64px)]',
-        'bg-white border-l border-gray-200 shadow-xl',
+        'fixed left-0 top-16 w-96 h-[calc(100vh-64px)]',
+        'bg-white border-r border-gray-200 shadow-xl',
         'transform transition-transform duration-300 ease-out z-[1001]',
-        'overflow-y-auto',
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+        'flex flex-col',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
       )}
     >
-      {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 p-4 z-10">
-        <div className="text-xs text-gray-500 uppercase tracking-wide">
-          Store Details
+      {/* Header with orange accent */}
+      <div className="sticky top-0 bg-white border-b border-l-4 border-l-brand-orange px-4 py-4 z-10">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-sm font-medium text-gray-500">Store Details</h2>
+            <p className="text-xl text-brand-orange font-semibold mt-0.5">
+              #{store.store_number || 'N/A'}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+          </button>
         </div>
-        <div className="text-xl text-brand-orange font-semibold mt-1">
-          Store #{store.store_number || 'N/A'}
-        </div>
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-        >
-          <X size={24} />
-        </button>
       </div>
 
-      {/* Content */}
-      <div className="p-4">
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-5">
         {/* Location */}
-        <div className="border-b border-gray-200 pb-4 mb-4">
-          <StatCard
-            label="Location"
-            value={`${store.city || 'N/A'}, ${store.state || 'N/A'}`}
-          />
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500 flex items-center gap-2">
+              <MapPin className="w-4 h-4" />
+              Location
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-semibold text-gray-900">
+              {store.city || 'N/A'}, {store.state || 'N/A'}
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Metrics */}
-        <div className="border-b border-gray-200 pb-4 mb-4">
-          {/* Annual Sales (for current stores) */}
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {isExpansionCandidate && (
+            <MetricCard
+              label="Predicted Sales"
+              value={formatCurrency(store.predicted_annual_sales || 0)}
+              icon={DollarSign}
+            />
+          )}
+
           {store.annual_sales > 0 && (
-            <MetricRow
+            <MetricCard
               label="Annual Sales"
-              value={`$${(store.annual_sales || 0).toLocaleString()}`}
+              value={formatCurrency(store.annual_sales || 0)}
+              icon={DollarSign}
             />
           )}
 
-          {/* POI Count */}
-          {store.total_poi_count !== undefined && (
-            <MetricRow
-              label="POI Count"
-              value={formatNumber(store.total_poi_count || 0)}
-            />
-          )}
-
-          {/* Population */}
-          <MetricRow
+          <MetricCard
             label="Population"
             value={formatNumber(store.population || 0)}
+            icon={Users}
           />
 
-          {/* Predicted Sales (for expansion candidates) */}
-          {isExpansionCandidate && (
-            <MetricRow
-              label="Predicted Sales"
-              value={`$${(store.predicted_annual_sales || 0).toLocaleString()}`}
+          {store.total_poi_count !== undefined && (
+            <MetricCard
+              label="POI Count"
+              value={formatNumber(store.total_poi_count || 0)}
+              icon={Building2}
             />
           )}
         </div>
 
-        {/* Fulfillment Recommendation */}
+        {/* Fulfillment Strategy */}
         {showFulfillmentRecommendation && (
-          <RecommendationCard isPartner={isPartner} storeData={store} />
+          <div className="space-y-3">
+            <h3 className="font-medium text-gray-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-brand-orange" />
+              Fulfillment Strategy
+            </h3>
+
+            {isPartner ? (
+              <PartnerStrategyCard storeData={store} />
+            ) : (
+              <NewBuildStrategyCard storeData={store} />
+            )}
+          </div>
+        )}
+
+        {/* Additional info for non-expansion mode */}
+        {!showFulfillmentRecommendation && store.total_poi_count !== undefined && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-500">
+                Store Performance
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-gray-600">
+                This store serves a population of {formatNumber(store.population || 0)} with{' '}
+                {formatNumber(store.total_poi_count || 0)} points of interest in the trade area.
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

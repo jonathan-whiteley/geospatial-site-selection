@@ -1,12 +1,18 @@
 import React, { useMemo, useCallback } from 'react'
 import { AppLayout, AppHeader } from './components/layout/AppLayout'
-import { Sidebar, ModeTabs, Divider } from './components/layout/Sidebar'
-import { CurrentNetworkMetrics, ExpansionMetrics } from './components/layout/MetricsPanel'
+import {
+  Sidebar,
+  ModeTabs,
+  MapLayersSection,
+  ExpansionMetricsSection,
+  PartnershipRecommendationsSection,
+  FiltersSection,
+  OptimizationSection,
+} from './components/layout/Sidebar'
+import { CurrentNetworkKPIs } from './components/layout/CurrentNetworkKPIs'
 import { GeospatialMap } from './components/map/GeospatialMap'
 import { DetailPanel } from './components/panels/DetailPanel'
-import { LayerToggles } from './components/controls/LayerToggles'
-import { FilterSliders } from './components/controls/FilterSliders'
-import { OptimizationControls } from './components/controls/OptimizationControls'
+import { Accordion } from './components/ui/Accordion'
 import { useMapState } from './hooks/useMapState'
 import { useStoreData } from './hooks/useStoreData'
 import { useOptimization } from './hooks/useOptimization'
@@ -15,25 +21,26 @@ import { useOptimization } from './hooks/useOptimization'
 const LOGO_SRC = '/logo.png'
 
 /**
- * Chat mode placeholder
+ * Loading spinner component
  */
-function ChatPlaceholder() {
+function LoadingSpinner({ message = 'Loading...' }) {
   return (
-    <div className="text-center py-10">
-      <div className="text-5xl mb-4">Chat</div>
-      <div className="text-base text-gray-500 mb-2">Chat Assistant</div>
-      <div className="text-sm text-gray-400">Coming soon...</div>
+    <div className="flex flex-col items-center justify-center h-full gap-4">
+      <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-brand-orange" />
+      <p className="text-sm text-gray-500">{message}</p>
     </div>
   )
 }
 
 /**
- * Loading spinner
+ * Error display component
  */
-function LoadingSpinner() {
+function ErrorDisplay({ error }) {
   return (
-    <div className="flex items-center justify-center h-full">
-      <div className="animate-spin rounded-full h-10 w-10 border-4 border-gray-200 border-t-brand-orange" />
+    <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+      <div className="text-red-500 text-5xl">⚠</div>
+      <p className="text-lg font-medium text-gray-900">Failed to load data</p>
+      <p className="text-sm text-gray-500 text-center max-w-md">{error}</p>
     </div>
   )
 }
@@ -46,7 +53,6 @@ function App() {
   const {
     networkData,
     expansionData,
-    optimizationCache,
     salesRange,
     populationRange,
     loading: dataLoading,
@@ -82,7 +88,6 @@ function App() {
   const filteredCandidates = useMemo(() => {
     let candidates = expansionData.candidates || []
 
-    // Apply filters
     if (filters.minSales) {
       candidates = candidates.filter(c => (c.predicted_annual_sales || 0) >= filters.minSales)
     }
@@ -101,6 +106,9 @@ function App() {
     return filteredCandidates
   }, [optimizationResults, filteredCandidates])
 
+  // Check if filters are active
+  const hasActiveFilters = filters.minSales || filters.minPopulation
+
   // Handle optimization run
   const handleRunOptimization = useCallback(async () => {
     await runOptimization(optimizationParams)
@@ -114,7 +122,6 @@ function App() {
       return
     }
 
-    // Define columns
     const columns = [
       { key: 'store_number', label: 'H3 Cell ID' },
       { key: 'fulfillment_strategy', label: 'Fulfillment Strategy' },
@@ -133,7 +140,6 @@ function App() {
       { key: 'center_lon', label: 'Center Longitude' },
     ]
 
-    // Build CSV
     const csvRows = [columns.map(c => c.label).join(',')]
     candidates.forEach(candidate => {
       const row = columns.map(col => {
@@ -153,7 +159,6 @@ function App() {
       csvRows.push(row.join(','))
     })
 
-    // Download
     const csvContent = csvRows.join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -168,69 +173,31 @@ function App() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-
-    console.log(`Exported ${candidates.length} candidates to ${filename}`)
   }, [visibleCandidates, optimizationResults])
 
-  // Render sidebar content based on mode
-  const renderSidebarContent = () => {
-    if (mode === 'chat') {
-      return <ChatPlaceholder />
-    }
+  // Total current stores count for header
+  const totalStores = networkData?.stores?.length || 0
 
-    return (
-      <>
-        <LayerToggles layers={layers} onToggle={toggleLayer} />
-
-        {mode === 'expansion' && (
-          <>
-            <Divider />
-            <FilterSliders
-              filters={filters}
-              ranges={{
-                sales: salesRange,
-                population: populationRange,
-              }}
-              onChange={updateFilters}
-            />
-            <OptimizationControls
-              params={optimizationParams}
-              onChange={updateOptimizationParams}
-              onRun={handleRunOptimization}
-              onClear={clearOptimization}
-              onExport={handleExport}
-              hasResults={optimizationResults && optimizationResults.length > 0}
-              loading={optimizationLoading}
-            />
-          </>
-        )}
-
-        {mode === 'current' ? (
-          <CurrentNetworkMetrics
-            networkData={networkData}
-            expansionData={expansionData}
-            visibleCandidates={visibleCandidates}
-          />
-        ) : mode === 'expansion' ? (
-          <ExpansionMetrics visibleCandidates={visibleCandidates} />
-        ) : null}
-      </>
-    )
-  }
+  // Determine which accordion sections to open by default
+  const defaultAccordionValues = mode === 'expansion'
+    ? ['layers', 'metrics', 'filters', 'optimization']
+    : ['layers', 'metrics']
 
   // Show loading state
   if (dataLoading) {
     return (
       <AppLayout
-        header={<AppHeader logoSrc={LOGO_SRC} />}
+        header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
         sidebar={
           <Sidebar>
             <ModeTabs activeMode={mode} onModeChange={setMode} />
-            <LoadingSpinner />
+            <div className="flex-1 flex items-center justify-center">
+              <LoadingSpinner message="Loading store data..." />
+            </div>
           </Sidebar>
         }
       >
-        <LoadingSpinner />
+        <LoadingSpinner message="Initializing map..." />
       </AppLayout>
     )
   }
@@ -239,30 +206,83 @@ function App() {
   if (dataError) {
     return (
       <AppLayout
-        header={<AppHeader logoSrc={LOGO_SRC} />}
+        header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
         sidebar={
           <Sidebar>
             <ModeTabs activeMode={mode} onModeChange={setMode} />
-            <div className="text-red-500 p-4">
-              Error loading data: {dataError}
+            <div className="p-4">
+              <ErrorDisplay error={dataError} />
             </div>
           </Sidebar>
         }
       >
-        <div className="flex items-center justify-center h-full text-red-500">
-          Failed to load map data
-        </div>
+        <ErrorDisplay error={dataError} />
       </AppLayout>
     )
   }
 
   return (
     <AppLayout
-      header={<AppHeader logoSrc={LOGO_SRC} />}
+      header={<AppHeader logoSrc={LOGO_SRC} totalStores={totalStores} />}
+      kpiBar={
+        <CurrentNetworkKPIs
+          networkData={networkData}
+          expansionData={expansionData}
+        />
+      }
       sidebar={
         <Sidebar>
           <ModeTabs activeMode={mode} onModeChange={setMode} />
-          {renderSidebarContent()}
+
+          {/* Scrollable accordion content */}
+          <div className="flex-1 overflow-y-auto">
+            <Accordion
+              type="multiple"
+              defaultValue={defaultAccordionValues}
+              className="w-full"
+            >
+              {/* Map Layers */}
+              <MapLayersSection
+                layers={layers}
+                onToggle={toggleLayer}
+              />
+
+              {/* Expansion Metrics (always visible) */}
+              <ExpansionMetricsSection
+                candidates={expansionData.candidates}
+                visibleCandidates={visibleCandidates}
+              />
+
+              {/* Partnership Recommendations */}
+              <PartnershipRecommendationsSection />
+
+              {/* Filters (expansion mode) */}
+              {mode === 'expansion' && (
+                <FiltersSection
+                  filters={filters}
+                  ranges={{
+                    sales: salesRange,
+                    population: populationRange,
+                  }}
+                  onChange={updateFilters}
+                  hasActiveFilters={hasActiveFilters}
+                />
+              )}
+
+              {/* Optimization (expansion mode) */}
+              {mode === 'expansion' && (
+                <OptimizationSection
+                  params={optimizationParams}
+                  onChange={updateOptimizationParams}
+                  onRun={handleRunOptimization}
+                  onClear={clearOptimization}
+                  onExport={handleExport}
+                  hasResults={optimizationResults && optimizationResults.length > 0}
+                  loading={optimizationLoading}
+                />
+              )}
+            </Accordion>
+          </div>
         </Sidebar>
       }
     >
