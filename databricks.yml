@@ -144,8 +144,13 @@ variables:
   # POI Configuration
   # Multi-state filter for Northeast region training data
   state_filter:
-    description: "Comma-separated state abbreviations for H3 features and whitespace locations (e.g., MA,CT,NJ,MD)"
+    description: "Comma-separated state abbreviations for H3 features training data (e.g., MA,CT,NJ,MD)"
     default: "MA,CT,NJ,MD"
+
+  # Expansion target state (whitespace locations)
+  expansion_state:
+    description: "Target state for expansion candidate locations (whitespace analysis)"
+    default: "MA"
 
   # LCE Locations Tables
   # Raw input table (must be manually uploaded)

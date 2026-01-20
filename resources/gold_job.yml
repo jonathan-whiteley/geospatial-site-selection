@@ -7,7 +7,8 @@ resources:
       # - h3_features_clean (from clean_h3_features.ipynb - includes CARTO ingestion)
       # - isochrones_lce (from create_isochrones.ipynb - Valhalla)
       # - pois_competitors (from clean_pois.ipynb)
-      # - isochrones_convenience (from create_isochrones.ipynb - Valhalla)
+      # - pois_partners (from clean_pois.ipynb)
+      # - isochrones_partners (from create_isochrones.ipynb - Valhalla)
       #
       # Run order: bronze → silver → gold
 

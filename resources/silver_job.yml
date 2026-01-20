@@ -42,7 +42,7 @@ resources:
               - "folium"
 
       tasks:
-        # Clean POIs and split into convenience/competitors
+        # Clean POIs and split into partners/competitors
         - task_key: "clean_pois"
           notebook_task:
             notebook_path: ../transformations/02_silver/clean_pois.ipynb
@@ -90,8 +90,8 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 7200
 
-        # Generate convenience store isochrones (Valhalla)
-        - task_key: "create_isochrones_convenience"
+        # Generate partner store isochrones (Valhalla)
+        - task_key: "create_isochrones_partners"
           depends_on:
             - task_key: "clean_pois"
           notebook_task:
@@ -101,13 +101,14 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
-              input_source: "convenience"
+              input_source: "partners"
               valhalla_url: "https://valhalla1.openstreetmap.de"
 
           environment_key: "Serverless"
           timeout_seconds: 7200
 
         # Generate whitespace (expansion candidate) locations
+        # Note: Uses expansion_state (default: MA), not the full training state_filter
         - task_key: "create_whitespace_locations"
           depends_on:
             - task_key: "clean_h3_features"
@@ -117,7 +118,7 @@ resources:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
-              state_filter: "${var.state_filter}"
+              state_filter: "${var.expansion_state}"
 
           environment_key: "Serverless"
           timeout_seconds: 3600

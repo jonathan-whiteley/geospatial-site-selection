@@ -87,7 +87,9 @@ distance:
   # Calculate distance to nearest Little Caesars store
   lce_stores:
     enabled: true
-    table: "jdub_demo_aws.geo_bronze.current_stores_ne"
+    # Table reference uses bundle variables: ${var.catalog}.${var.bronze_schema}.current_stores_ne
+    # Note: Actual table substitution happens at runtime via notebook parameters
+    table_suffix: "current_stores_ne"
 
 # Performance Configuration
 performance:
