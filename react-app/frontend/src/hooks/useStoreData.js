@@ -8,17 +8,22 @@ export function useStoreData() {
   const [networkData, setNetworkData] = useState({
     stores: [],
     isochrones: [],
-    convenienceIsochrones: [],
-    convenienceStores: [],
+    partnerIsochrones: [],
+    partnerStores: [],
     competitors: [],
     maBoundary: null,
+    // Backward compatibility aliases (deprecated)
+    convenienceIsochrones: [],
+    convenienceStores: [],
   })
 
   const [expansionData, setExpansionData] = useState({
     candidates: [],
     currentStores: [],
-    convenienceStores: [],
+    partnerStores: [],
     competitors: [],
+    // Backward compatibility alias (deprecated)
+    convenienceStores: [],
   })
 
   const [optimizationCache, setOptimizationCache] = useState([])
@@ -51,23 +56,33 @@ export function useStoreData() {
         ])
 
         if (networkResponse) {
+          // Support both partner_* (new) and convenience_* (deprecated) response keys
+          const partnerIsochrones = networkResponse.partner_isochrones || networkResponse.convenience_isochrones || []
+          const partnerStores = networkResponse.partner_stores || networkResponse.convenience_stores || []
           setNetworkData({
             stores: networkResponse.stores || [],
             isochrones: networkResponse.isochrones || [],
-            convenienceIsochrones: networkResponse.convenience_isochrones || [],
-            convenienceStores: networkResponse.convenience_stores || [],
+            partnerIsochrones,
+            partnerStores,
             competitors: networkResponse.competitors || [],
             maBoundary: networkResponse.ma_boundary || null,
+            // Backward compatibility aliases
+            convenienceIsochrones: partnerIsochrones,
+            convenienceStores: partnerStores,
           })
           console.log(`Loaded network data: ${networkResponse.stores?.length || 0} stores`)
         }
 
         if (expansionResponse) {
+          // Support both partner_stores (new) and convenience_stores (deprecated)
+          const partnerStores = expansionResponse.partner_stores || expansionResponse.convenience_stores || []
           setExpansionData({
             candidates: expansionResponse.candidates || [],
             currentStores: expansionResponse.current_stores || [],
-            convenienceStores: expansionResponse.convenience_stores || [],
+            partnerStores,
             competitors: expansionResponse.competitors || [],
+            // Backward compatibility alias
+            convenienceStores: partnerStores,
           })
           console.log(`Loaded expansion data: ${expansionResponse.candidates?.length || 0} candidates`)
         }
@@ -99,22 +114,28 @@ export function useStoreData() {
       ])
 
       if (networkResponse) {
+        const partnerIsochrones = networkResponse.partner_isochrones || networkResponse.convenience_isochrones || []
+        const partnerStores = networkResponse.partner_stores || networkResponse.convenience_stores || []
         setNetworkData({
           stores: networkResponse.stores || [],
           isochrones: networkResponse.isochrones || [],
-          convenienceIsochrones: networkResponse.convenience_isochrones || [],
-          convenienceStores: networkResponse.convenience_stores || [],
+          partnerIsochrones,
+          partnerStores,
           competitors: networkResponse.competitors || [],
           maBoundary: networkResponse.ma_boundary || null,
+          convenienceIsochrones: partnerIsochrones,
+          convenienceStores: partnerStores,
         })
       }
 
       if (expansionResponse) {
+        const partnerStores = expansionResponse.partner_stores || expansionResponse.convenience_stores || []
         setExpansionData({
           candidates: expansionResponse.candidates || [],
           currentStores: expansionResponse.current_stores || [],
-          convenienceStores: expansionResponse.convenience_stores || [],
+          partnerStores,
           competitors: expansionResponse.competitors || [],
+          convenienceStores: partnerStores,
         })
       }
     } catch (err) {

@@ -49,25 +49,11 @@ class DataService:
         self.settings = get_settings()
         self.db = get_db()
 
-    def load_current_network_data(self) -> Dict[str, Any]:
-        """Load all data for Current Network mode from viz_* gold tables."""
+    # ========== Individual Loaders (Phase 2.1: Split N+1 queries) ==========
+
+    def load_stores(self) -> List[Dict[str, Any]]:
+        """Load existing store locations."""
         gold = self.settings.gold_table_prefix
-        silver = self.settings.silver_table_prefix
-        bronze = self.settings.bronze_table_prefix
-
-        print(f"\n=== LOADING CURRENT NETWORK DATA ===")
-        print(f"Gold: {gold}, Silver: {silver}, Bronze: {bronze}")
-
-        result = {
-            'stores': [],
-            'isochrones': [],
-            'convenience_isochrones': [],
-            'convenience_stores': [],
-            'competitors': [],
-            'ma_boundary': None
-        }
-
-        # Load existing stores
         try:
             print(f"Loading viz_existing_stores...")
             stores_df = self.db.execute_query(f"""
@@ -77,12 +63,17 @@ class DataService:
                        COALESCE(annual_sales, 0) as annual_sales
                 FROM {gold}.viz_existing_stores
             """)
-            result['stores'] = stores_df.to_dict('records') if not stores_df.empty else []
-            print(f"Loaded {len(result['stores'])} existing stores")
+            result = stores_df.to_dict('records') if not stores_df.empty else []
+            print(f"Loaded {len(result)} existing stores")
+            return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_existing_stores: {str(e)}")
+            return []
 
-        # Load LCE isochrones (MA only)
+    def load_isochrones(self) -> List[Dict[str, Any]]:
+        """Load LCE store trade area isochrones (MA only)."""
+        gold = self.settings.gold_table_prefix
+        silver = self.settings.silver_table_prefix
         try:
             print(f"Loading isochrones_lce...")
             isochrones_df = self.db.execute_query(f"""
@@ -92,48 +83,84 @@ class DataService:
                     ON iso.location_id = stores.store_number
                 WHERE stores.state = 'MA'
             """)
-            result['isochrones'] = isochrones_df.to_dict('records') if not isochrones_df.empty else []
-            print(f"Loaded {len(result['isochrones'])} LCE isochrones")
+            result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
+            print(f"Loaded {len(result)} LCE isochrones")
+            return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading isochrones_lce: {str(e)}")
+            return []
 
-        # Load convenience isochrones
+    def load_partner_data(self) -> Dict[str, Any]:
+        """
+        Load partner (convenience) store data with a single query.
+        Phase 2.2: Combined duplicate viz_partners queries into one.
+        Returns both isochrones and store location data.
+        """
+        gold = self.settings.gold_table_prefix
         try:
-            print(f"Loading viz_convenience...")
-            convenience_iso_df = self.db.execute_query(f"""
-                SELECT id as location_id, geometry_geojson as isochrone_geojson,
-                       candidate_count_in_isochrone, total_candidate_sales_in_isochrone
-                FROM {gold}.viz_convenience
+            print(f"Loading viz_partners...")
+            # Single query fetches all needed columns for both isochrones and stores
+            partner_df = self.db.execute_query(f"""
+                SELECT id as location_id,
+                       geometry_geojson as isochrone_geojson,
+                       candidate_count_in_isochrone,
+                       total_candidate_sales_in_isochrone,
+                       name, latitude, longitude, store_type as poi_category, poi_subcategory
+                FROM {gold}.viz_partners
             """)
-            result['convenience_isochrones'] = convenience_iso_df.to_dict('records') if not convenience_iso_df.empty else []
-            print(f"Loaded {len(result['convenience_isochrones'])} convenience isochrones")
-        except Exception as e:
-            print(f"ERROR loading viz_convenience: {str(e)}")
 
-        # Load convenience stores
-        try:
-            convenience_stores_df = self.db.execute_query(f"""
-                SELECT name, latitude, longitude, store_type as poi_category
-                FROM {gold}.viz_convenience
-            """)
-            result['convenience_stores'] = convenience_stores_df.to_dict('records') if not convenience_stores_df.empty else []
-            print(f"Loaded {len(result['convenience_stores'])} convenience stores")
-        except Exception as e:
-            print(f"ERROR loading convenience stores: {str(e)}")
+            if partner_df.empty:
+                print("No partner data found")
+                return {'isochrones': [], 'stores': []}
 
-        # Load competitors
+            records = partner_df.to_dict('records')
+
+            # Split into isochrone and store views from single query result
+            isochrones = [
+                {
+                    'location_id': r['location_id'],
+                    'isochrone_geojson': r['isochrone_geojson'],
+                    'candidate_count_in_isochrone': r['candidate_count_in_isochrone'],
+                    'total_candidate_sales_in_isochrone': r['total_candidate_sales_in_isochrone']
+                }
+                for r in records
+            ]
+            stores = [
+                {
+                    'name': r['name'],
+                    'latitude': r['latitude'],
+                    'longitude': r['longitude'],
+                    'poi_category': r['poi_category'],
+                    'poi_subcategory': r['poi_subcategory']
+                }
+                for r in records
+            ]
+
+            print(f"Loaded {len(isochrones)} partner isochrones and {len(stores)} partner stores")
+            return sanitize_for_json({'isochrones': isochrones, 'stores': stores})
+        except Exception as e:
+            print(f"ERROR loading viz_partners: {str(e)}")
+            return {'isochrones': [], 'stores': []}
+
+    def load_competitors(self) -> List[Dict[str, Any]]:
+        """Load competitor store locations."""
+        gold = self.settings.gold_table_prefix
         try:
             print(f"Loading viz_competitors...")
             competitors_df = self.db.execute_query(f"""
                 SELECT name, latitude, longitude, poi_category, poi_subcategory
                 FROM {gold}.viz_competitors
             """)
-            result['competitors'] = competitors_df.to_dict('records') if not competitors_df.empty else []
-            print(f"Loaded {len(result['competitors'])} competitors")
+            result = competitors_df.to_dict('records') if not competitors_df.empty else []
+            print(f"Loaded {len(result)} competitors")
+            return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_competitors: {str(e)}")
+            return []
 
-        # Load MA boundary
+    def load_ma_boundary(self) -> Optional[Dict[str, Any]]:
+        """Load Massachusetts state boundary."""
+        bronze = self.settings.bronze_table_prefix
         try:
             print(f"Loading MA boundary...")
             ma_boundary_df = self.db.execute_query(f"""
@@ -142,35 +169,76 @@ class DataService:
                 WHERE state_abbr = 'MA'
             """)
             if not ma_boundary_df.empty and ma_boundary_df.iloc[0].get('geometry_geojson'):
-                result['ma_boundary'] = json.loads(ma_boundary_df.iloc[0]['geometry_geojson'])
                 print("Loaded MA boundary")
+                return json.loads(ma_boundary_df.iloc[0]['geometry_geojson'])
+            return None
         except Exception as e:
             print(f"ERROR loading MA boundary: {str(e)}")
+            return None
 
-        return sanitize_for_json(result)
+    # ========== Composite Loaders ==========
 
-    def load_expansion_data(self) -> Dict[str, Any]:
-        """Load all data for Expansion Analysis mode from viz_* gold tables."""
-        gold = self.settings.gold_table_prefix
+    def load_current_network_data(self) -> Dict[str, Any]:
+        """Load all data for Current Network mode from viz_* gold tables."""
+        print(f"\n=== LOADING CURRENT NETWORK DATA ===")
 
-        print(f"\n=== LOADING EXPANSION DATA ===")
-        print(f"Gold: {gold}")
+        # Use individual loaders for better granularity
+        partner_data = self.load_partner_data()
 
         result = {
-            'candidates': [],
-            'current_stores': [],
-            'convenience_stores': [],
-            'competitors': []
+            'stores': self.load_stores(),
+            'isochrones': self.load_isochrones(),
+            'partner_isochrones': partner_data['isochrones'],
+            'partner_stores': partner_data['stores'],
+            'competitors': self.load_competitors(),
+            'ma_boundary': self.load_ma_boundary(),
+            # Backward compatibility aliases (deprecated)
+            'convenience_isochrones': partner_data['isochrones'],
+            'convenience_stores': partner_data['stores']
         }
 
-        # Load expansion candidates
+        return result
+
+    def load_expansion_candidates(
+        self,
+        min_sales: Optional[float] = None,
+        max_sales: Optional[float] = None,
+        min_population: Optional[float] = None,
+        max_population: Optional[float] = None,
+        fulfillment_strategy: Optional[str] = None,
+        quality_tier: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Load expansion candidate locations with optional SQL-level filtering.
+        Phase 2.4: Push filters to SQL WHERE clauses for better performance.
+        """
+        gold = self.settings.gold_table_prefix
+
+        # Build WHERE clause dynamically
+        conditions = []
+        if min_sales is not None:
+            conditions.append(f"predicted_annual_sales >= {min_sales}")
+        if max_sales is not None:
+            conditions.append(f"predicted_annual_sales <= {max_sales}")
+        if min_population is not None:
+            conditions.append(f"population >= {min_population}")
+        if max_population is not None:
+            conditions.append(f"population <= {max_population}")
+        if fulfillment_strategy is not None:
+            conditions.append(f"fulfillment_strategy = '{fulfillment_strategy}'")
+        if quality_tier is not None:
+            conditions.append(f"quality_tier = '{quality_tier}'")
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
         try:
-            print(f"Loading viz_expansion_candidates...")
+            filter_desc = f" with filters: {conditions}" if conditions else ""
+            print(f"Loading viz_expansion_candidates{filter_desc}...")
             candidates_df = self.db.execute_query(f"""
                 SELECT h3_cell_id as store_number,
                        COALESCE(
                            CASE
-                               WHEN convenience_city IS NOT NULL THEN convenience_city
+                               WHEN partner_city IS NOT NULL THEN partner_city
                                WHEN urbanity IN ('Very_High_density_urban', 'High_density_urban') THEN 'Boston Metro'
                                WHEN urbanity IN ('Medium_density_urban', 'Low_density_urban') THEN 'Greater Boston'
                                ELSE 'Massachusetts'
@@ -181,53 +249,35 @@ class DataService:
                        latitude, longitude,
                        predicted_annual_sales, population, total_poi_count,
                        min_distance_to_existing, nearest_existing_store,
-                       within_convenience_isochrone, convenience_store_name,
-                       convenience_city, convenience_drive_time,
+                       within_partner_isochrone, partner_store_name,
+                       partner_city, partner_drive_time,
                        fulfillment_strategy, quality_tier,
                        center_lat, center_lon, geometry_geojson
                 FROM {gold}.viz_expansion_candidates
+                {where_clause}
             """)
-            result['candidates'] = candidates_df.to_dict('records') if not candidates_df.empty else []
-            print(f"Loaded {len(result['candidates'])} expansion candidates")
+            result = candidates_df.to_dict('records') if not candidates_df.empty else []
+            print(f"Loaded {len(result)} expansion candidates")
+            return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_expansion_candidates: {str(e)}")
+            return []
 
-        # Load current stores
-        try:
-            print(f"Loading current_stores...")
-            stores_df = self.db.execute_query(f"""
-                SELECT store_number, city, state, latitude, longitude,
-                       population, poi_count as total_poi_count,
-                       h3_cell_id, geometry_geojson,
-                       COALESCE(annual_sales, 0) as annual_sales
-                FROM {gold}.viz_existing_stores
-            """)
-            result['current_stores'] = stores_df.to_dict('records') if not stores_df.empty else []
-            print(f"Loaded {len(result['current_stores'])} current stores")
-        except Exception as e:
-            print(f"ERROR loading current stores: {str(e)}")
+    def load_expansion_data(self) -> Dict[str, Any]:
+        """Load all data for Expansion Analysis mode from viz_* gold tables."""
+        print(f"\n=== LOADING EXPANSION DATA ===")
 
-        # Load convenience stores
-        try:
-            convenience_stores_df = self.db.execute_query(f"""
-                SELECT name, latitude, longitude, store_type as poi_category
-                FROM {gold}.viz_convenience
-            """)
-            result['convenience_stores'] = convenience_stores_df.to_dict('records') if not convenience_stores_df.empty else []
-            print(f"Loaded {len(result['convenience_stores'])} convenience stores")
-        except Exception as e:
-            print(f"ERROR loading convenience stores: {str(e)}")
+        # Reuse individual loaders to avoid duplicate queries
+        partner_data = self.load_partner_data()
 
-        # Load competitors
-        try:
-            competitors_df = self.db.execute_query(f"""
-                SELECT name, latitude, longitude, poi_category, poi_subcategory
-                FROM {gold}.viz_competitors
-            """)
-            result['competitors'] = competitors_df.to_dict('records') if not competitors_df.empty else []
-            print(f"Loaded {len(result['competitors'])} competitors")
-        except Exception as e:
-            print(f"ERROR loading competitors: {str(e)}")
+        result = {
+            'candidates': self.load_expansion_candidates(),
+            'current_stores': self.load_stores(),
+            'partner_stores': partner_data['stores'],
+            'competitors': self.load_competitors(),
+            # Backward compatibility alias (deprecated)
+            'convenience_stores': partner_data['stores']
+        }
 
         return sanitize_for_json(result)
 
@@ -324,18 +374,21 @@ class DataService:
             except Exception:
                 h3_cells = []
 
+        # Phase 2.3: Convert to set for O(1) lookups instead of O(n) list membership
+        h3_cells_set = set(h3_cells)
+
         # If candidates provided, map H3 cells to full objects
         if candidates:
             selected = [
                 c for c in candidates
-                if c.get('store_number') in h3_cells
+                if c.get('store_number') in h3_cells_set
             ]
         else:
             # Load candidates if not provided
             expansion_data = self.load_expansion_data()
             selected = [
                 c for c in expansion_data.get('candidates', [])
-                if c.get('store_number') in h3_cells
+                if c.get('store_number') in h3_cells_set
             ]
 
         print(f"Optimization lookup: max={snapped['max_stores']}, "

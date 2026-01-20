@@ -87,7 +87,7 @@ export function CurrentNetworkKPIs({ networkData, expansionData }) {
       borderColor: 'border-l-blue-500',
     },
     {
-      label: 'Hunger Satisfaction',
+      label: '5-min Hunger Satisfaction',
       value: `${metrics.hungerSatisfactionCoverage}%`,
       subtext: 'Current / Total Market',
       icon: Target,

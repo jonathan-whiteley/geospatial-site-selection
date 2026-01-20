@@ -91,3 +91,39 @@ export function formatPopulation(pop) {
   }
   return pop.toLocaleString()
 }
+
+/**
+ * Check if a point is within Leaflet bounds
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {object} bounds - Leaflet bounds object with _southWest and _northEast
+ * @returns {boolean}
+ */
+export function isPointInBounds(lat, lng, bounds) {
+  if (!bounds || !bounds._southWest || !bounds._northEast) return true
+
+  const sw = bounds._southWest
+  const ne = bounds._northEast
+
+  return (
+    lat >= sw.lat &&
+    lat <= ne.lat &&
+    lng >= sw.lng &&
+    lng <= ne.lng
+  )
+}
+
+/**
+ * Filter an array of locations by map viewport bounds
+ * @param {Array} items - Array of items with latitude/longitude properties
+ * @param {object} bounds - Leaflet bounds object
+ * @returns {Array} - Filtered items within bounds
+ */
+export function filterByBounds(items, bounds) {
+  if (!items || !Array.isArray(items)) return []
+  if (!bounds) return items
+
+  return items.filter(item =>
+    isPointInBounds(item.latitude, item.longitude, bounds)
+  )
+}

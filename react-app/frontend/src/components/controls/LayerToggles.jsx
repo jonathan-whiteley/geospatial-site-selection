@@ -31,7 +31,7 @@ export function LayerToggles({ layers, onToggle }) {
     { key: 'h3Hexagons', label: 'Demand Heatmap - H3' },
     { key: 'currentStores', label: 'Current Stores' },
     { key: 'candidateIsochrones', label: 'Candidate Trade Areas' },
-    { key: 'convenience', label: 'Potential Partner Stores' },
+    { key: 'partners', label: 'Partner Stores' },
     { key: 'competitors', label: 'Competitors' },
   ]
 

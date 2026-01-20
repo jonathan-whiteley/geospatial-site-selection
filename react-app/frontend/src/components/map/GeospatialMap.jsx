@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, useMap, Pane, GeoJSON, CircleMarker, Circle, Popup } from 'react-leaflet'
 import MarkerClusterGroup from './MarkerClusterGroup'
+import { MapBoundsTracker } from './MapBoundsTracker'
 import { MapLegend, SalesGradientLegend } from './MapLegend'
 import { getSalesColor, formatSales } from '../../lib/utils'
 import 'leaflet/dist/leaflet.css'
@@ -68,9 +69,9 @@ function IsochroneLayer({ isochrones }) {
 }
 
 /**
- * Convenience store isochrones (blue)
+ * Partner store isochrones (blue)
  */
-function ConvenienceIsochroneLayer({ isochrones, visible }) {
+function PartnerIsochroneLayer({ isochrones, visible }) {
   if (!visible || !isochrones || isochrones.length === 0) return null
 
   return (
@@ -83,7 +84,7 @@ function ConvenienceIsochroneLayer({ isochrones, visible }) {
             : iso.isochrone_geojson
           return (
             <GeoJSON
-              key={`conv-iso-${idx}`}
+              key={`partner-iso-${idx}`}
               data={geojson}
               pane="isochrones"
               interactive={false}
@@ -96,7 +97,7 @@ function ConvenienceIsochroneLayer({ isochrones, visible }) {
             />
           )
         } catch (e) {
-          console.error('Failed to parse convenience isochrone:', e)
+          console.error('Failed to parse partner isochrone:', e)
           return null
         }
       })}
@@ -157,7 +158,7 @@ function H3HexagonLayer({ candidates, salesRange, visible, onStoreClick }) {
 }
 
 /**
- * Current stores markers (green)
+ * Current stores markers (green) - with polished popup
  */
 function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
   if (!visible || !stores || stores.length === 0) return null
@@ -181,17 +182,30 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
           }}
         >
           <Popup className="modern-popup">
-            <div className="min-w-[200px]">
-              <div className="font-semibold text-gray-900">Store #{store.store_number}</div>
-              <div className="text-sm text-gray-500 mb-2">{store.city}, {store.state}</div>
-              <div className="border-t border-gray-100 pt-2 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Population:</span>
-                  <span className="font-medium">{Math.round(store.population || 0).toLocaleString()}</span>
+            <div className="min-w-[220px]">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                <div>
+                  <div className="font-semibold text-gray-900">Store #{store.store_number}</div>
+                  <div className="text-xs text-gray-500">{store.city}, {store.state}</div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">POI Count:</span>
-                  <span className="font-medium">{(store.total_poi_count || 0).toLocaleString()}</span>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                {(store.annual_sales || store.predicted_annual_sales) > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Annual Sales</span>
+                    <span className="text-sm font-semibold text-emerald-600">
+                      ${Math.round(store.annual_sales || store.predicted_annual_sales || 0).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Population</span>
+                  <span className="text-sm font-medium text-gray-700">{Math.round(store.population || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">POI Count</span>
+                  <span className="text-sm font-medium text-gray-700">{(store.total_poi_count || 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -230,7 +244,7 @@ function CandidateIsochroneLayer({ candidates, visible }) {
 }
 
 /**
- * Candidate markers (red, with clustering)
+ * Candidate markers (red, with clustering) - polished popup
  */
 function CandidateMarkers({ candidates, visible, onStoreClick }) {
   if (!visible || !candidates || candidates.length === 0) return null
@@ -257,17 +271,30 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
         >
           <Popup className="modern-popup">
             <div className="min-w-[220px]">
-              <div className="font-semibold text-gray-900">Expansion Candidate</div>
-              <div className="text-sm text-gray-500 mb-2">Location {candidate.store_number}</div>
-              <div className="border-t border-gray-100 pt-2 space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Predicted Sales:</span>
-                  <span className="font-medium text-emerald-600">${(candidate.predicted_annual_sales || 0).toLocaleString()}</span>
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                <div>
+                  <div className="font-semibold text-gray-900">Expansion Candidate</div>
+                  <div className="text-xs text-gray-500">{candidate.city}, {candidate.state}</div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Population:</span>
-                  <span className="font-medium">{Math.round(candidate.population || 0).toLocaleString()}</span>
+              </div>
+              <div className="pt-2 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Predicted Sales</span>
+                  <span className="text-sm font-semibold text-emerald-600">
+                    ${(candidate.predicted_annual_sales || 0).toLocaleString()}
+                  </span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">Population</span>
+                  <span className="text-sm font-medium text-gray-700">{Math.round(candidate.population || 0).toLocaleString()}</span>
+                </div>
+                {candidate.within_convenience_isochrone && (
+                  <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                    <span className="text-xs text-gray-500">Partner</span>
+                    <span className="text-xs font-medium text-blue-600">{candidate.convenience_store_name || 'Available'}</span>
+                  </div>
+                )}
               </div>
             </div>
           </Popup>
@@ -278,16 +305,16 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
 }
 
 /**
- * Convenience store markers (blue)
+ * Partner store markers (blue)
  */
-function ConvenienceStoreMarkers({ stores, visible }) {
+function PartnerStoreMarkers({ stores, visible }) {
   if (!visible || !stores || stores.length === 0) return null
 
   return (
     <>
       {stores.map((store, idx) => (
         <CircleMarker
-          key={`conv-${idx}`}
+          key={`partner-${idx}`}
           center={[store.latitude, store.longitude]}
           pane="markers"
           radius={6}
@@ -352,15 +379,21 @@ export function GeospatialMap({
   layers,
   salesRange,
   onStoreClick,
+  onBoundsChange,
 }) {
   // Get current stores (from candidates' current_stores or network stores)
   const currentStores = useMemo(() => {
     return networkData?.stores || []
   }, [networkData])
 
-  // Get convenience stores
-  const convenienceStores = useMemo(() => {
-    return networkData?.convenienceStores || []
+  // Get partner stores (with fallback to deprecated convenienceStores)
+  const partnerStores = useMemo(() => {
+    return networkData?.partnerStores || networkData?.convenienceStores || []
+  }, [networkData])
+
+  // Get partner isochrones (with fallback to deprecated convenienceIsochrones)
+  const partnerIsochrones = useMemo(() => {
+    return networkData?.partnerIsochrones || networkData?.convenienceIsochrones || []
   }, [networkData])
 
   // Get competitors
@@ -380,6 +413,7 @@ export function GeospatialMap({
         zoomControl={true}
       >
         <MapPanes />
+        <MapBoundsTracker onBoundsChange={onBoundsChange} />
 
         {/* Light tile layer (CartoDB Positron) */}
         <TileLayer
@@ -391,10 +425,10 @@ export function GeospatialMap({
         {/* LCE Isochrones (always visible) */}
         <IsochroneLayer isochrones={networkData?.isochrones} />
 
-        {/* Convenience isochrones */}
-        <ConvenienceIsochroneLayer
-          isochrones={networkData?.convenienceIsochrones}
-          visible={layers.convenience}
+        {/* Partner isochrones */}
+        <PartnerIsochroneLayer
+          isochrones={partnerIsochrones}
+          visible={layers.partners}
         />
 
         {/* Candidate isochrones */}
@@ -425,10 +459,10 @@ export function GeospatialMap({
           onStoreClick={onStoreClick}
         />
 
-        {/* Convenience stores */}
-        <ConvenienceStoreMarkers
-          stores={convenienceStores}
-          visible={layers.convenience}
+        {/* Partner stores */}
+        <PartnerStoreMarkers
+          stores={partnerStores}
+          visible={layers.partners}
         />
 
         {/* Competitors */}

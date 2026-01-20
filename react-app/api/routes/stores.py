@@ -16,8 +16,8 @@ async def get_current_stores():
     """
     try:
         service = get_data_service()
-        data = service.load_current_network_data()
-        return data.get('stores', [])
+        # Use individual loader for better performance
+        return service.load_stores()
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -34,48 +34,67 @@ async def get_store_isochrones():
     """
     try:
         service = get_data_service()
-        data = service.load_current_network_data()
-        return data.get('isochrones', [])
+        # Use individual loader for better performance
+        return service.load_isochrones()
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/convenience")
-async def get_convenience_isochrones():
+@router.get("/partners")
+async def get_partner_isochrones():
     """
-    Get convenience store trade area isochrones with candidate info.
+    Get partner store trade area isochrones with candidate info.
 
     Returns:
-        List of convenience isochrones with overlapping candidate counts
+        List of partner isochrones with overlapping candidate counts
     """
     try:
         service = get_data_service()
-        data = service.load_current_network_data()
-        return data.get('convenience_isochrones', [])
+        partner_data = service.load_partner_data()
+        return partner_data['isochrones']
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/partners/stores")
+async def get_partner_stores():
+    """
+    Get potential partner store locations (e.g., convenience stores).
+
+    Returns:
+        List of partner stores that could serve as fulfillment locations
+    """
+    try:
+        service = get_data_service()
+        partner_data = service.load_partner_data()
+        return partner_data['stores']
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Backward compatibility aliases (deprecated)
+@router.get("/convenience")
+async def get_convenience_isochrones():
+    """
+    DEPRECATED: Use /stores/partners instead.
+    Get partner store trade area isochrones with candidate info.
+    """
+    return await get_partner_isochrones()
 
 
 @router.get("/convenience/stores")
 async def get_convenience_stores():
     """
-    Get potential partner convenience store locations.
-
-    Returns:
-        List of convenience stores that could serve as partners
+    DEPRECATED: Use /stores/partners/stores instead.
+    Get potential partner store locations.
     """
-    try:
-        service = get_data_service()
-        data = service.load_current_network_data()
-        return data.get('convenience_stores', [])
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+    return await get_partner_stores()
 
 
 @router.get("/competitors")
@@ -88,8 +107,8 @@ async def get_competitors():
     """
     try:
         service = get_data_service()
-        data = service.load_current_network_data()
-        return data.get('competitors', [])
+        # Use individual loader for better performance
+        return service.load_competitors()
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -102,12 +121,11 @@ async def get_full_network():
     Get all current network data in a single request.
 
     Returns:
-        Complete network data including stores, isochrones, convenience, competitors
+        Complete network data including stores, isochrones, partners, competitors
     """
     try:
         service = get_data_service()
         data = service.load_current_network_data()
-        # Return raw dict to avoid Pydantic validation issues with DB types
         return data
     except Exception as e:
         import traceback

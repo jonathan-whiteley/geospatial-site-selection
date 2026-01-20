@@ -1,12 +1,11 @@
-import React from 'react'
 import { cn } from '../../lib/utils'
 import {
   Eye, TrendingUp, BarChart3, Layers, SlidersHorizontal,
   Sparkles, Users, Store, Building2, MapPin, Building,
-  Hexagon, Circle, DollarSign, Target, Download, Play, Loader2
+  Hexagon, Circle, DollarSign, Download, Play, Loader2
 } from 'lucide-react'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/Tabs'
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../ui/Accordion'
+import { Tabs, TabsList, TabsTrigger } from '../ui/Tabs'
+import { AccordionItem, AccordionTrigger, AccordionContent } from '../ui/Accordion'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 import { LayerToggle } from '../ui/LayerToggle'
@@ -29,7 +28,24 @@ export function Sidebar({ children, className }) {
 }
 
 /**
- * Mode tabs for switching between Overview and Expansion
+ * Static header for Expansion Planning mode (replaces ModeTabs)
+ */
+export function ExpansionHeader() {
+  return (
+    <div className="p-4 border-b border-gray-100">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="w-5 h-5 text-brand-orange" />
+        <h2 className="text-lg font-semibold text-gray-900">Expansion Planning</h2>
+      </div>
+      <p className="text-xs text-gray-500 mt-1">
+        Analyze candidates and partnership opportunities
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Mode tabs for switching between Overview and Expansion (deprecated, kept for compatibility)
  */
 export function ModeTabs({ activeMode, onModeChange }) {
   return (
@@ -51,11 +67,24 @@ export function ModeTabs({ activeMode, onModeChange }) {
 }
 
 /**
- * Expansion Metrics Section
+ * Expansion Metrics Section - Shows viewport-based counts
  */
-export function ExpansionMetricsSection({ candidates, visibleCandidates }) {
-  const totalPredictedSales = candidates?.reduce((sum, c) => sum + (c.predicted_annual_sales || 0), 0) || 0
-  const avgPredictedSales = candidates?.length > 0 ? totalPredictedSales / candidates.length : 0
+export function ExpansionMetricsSection({ candidates, viewportCandidates, visibleCandidates, hasActiveFilters }) {
+  // Calculate metrics for viewport candidates
+  const viewportCount = viewportCandidates?.length || 0
+  const visibleCount = visibleCandidates?.length || 0
+  const totalCount = candidates?.length || 0
+
+  const visiblePredictedSales = visibleCandidates?.reduce((sum, c) => sum + (c.predicted_annual_sales || 0), 0) || 0
+  const avgPredictedSales = visibleCount > 0 ? visiblePredictedSales / visibleCount : 0
+
+  // Calculate 5-min hunger satisfaction with partner (candidates within partner isochrone / total)
+  const candidatesWithPartner = visibleCandidates?.filter(c =>
+    c.within_convenience_isochrone || c.fulfillment_strategy === 'partner'
+  ).length || 0
+  const partnerCoveragePercent = visibleCount > 0
+    ? ((candidatesWithPartner / visibleCount) * 100).toFixed(1)
+    : '0.0'
 
   return (
     <AccordionItem value="metrics">
@@ -67,22 +96,32 @@ export function ExpansionMetricsSection({ candidates, visibleCandidates }) {
       </AccordionTrigger>
       <AccordionContent>
         <div className="space-y-3">
+          {/* Candidates in View */}
           <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-red-500" />
-              <span className="text-sm text-gray-700">Expansion Candidates</span>
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700">Candidates in View</span>
+                {hasActiveFilters && (
+                  <span className="text-xs text-gray-500">
+                    {viewportCount.toLocaleString()} before filters
+                  </span>
+                )}
+              </div>
             </div>
-            <span className="font-bold text-red-600">{(candidates?.length || 0).toLocaleString()}</span>
+            <span className="font-bold text-red-600">{visibleCount.toLocaleString()}</span>
           </div>
 
+          {/* Total Predicted Sales (for visible candidates) */}
           <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-blue-500" />
               <span className="text-sm text-gray-700">Total Predicted Sales</span>
             </div>
-            <span className="font-bold text-blue-600">{formatCurrency(totalPredictedSales)}</span>
+            <span className="font-bold text-blue-600">{formatCurrency(visiblePredictedSales)}</span>
           </div>
 
+          {/* Average Predicted Sales */}
           <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-purple-500" />
@@ -91,15 +130,26 @@ export function ExpansionMetricsSection({ candidates, visibleCandidates }) {
             <span className="font-bold text-purple-600">{formatCurrency(avgPredictedSales)}</span>
           </div>
 
-          {visibleCandidates && visibleCandidates.length !== candidates?.length && (
-            <div className="pt-2 border-t border-gray-200 mt-2">
-              <p className="text-xs text-gray-500 mb-2">Currently Visible</p>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Filtered Candidates</span>
-                <span className="font-semibold text-gray-900">{visibleCandidates.length.toLocaleString()}</span>
+          {/* 5-min Hunger Satisfaction with Partner */}
+          <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-emerald-500" />
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-700">5-min Partner Coverage</span>
+                <span className="text-xs text-gray-500">
+                  {candidatesWithPartner.toLocaleString()} of {visibleCount.toLocaleString()} candidates
+                </span>
               </div>
             </div>
-          )}
+            <span className="font-bold text-emerald-600">{partnerCoveragePercent}%</span>
+          </div>
+
+          {/* Global context */}
+          <div className="pt-2 border-t border-gray-200 mt-2">
+            <p className="text-xs text-gray-400">
+              {totalCount.toLocaleString()} total candidates across all regions
+            </p>
+          </div>
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -107,36 +157,52 @@ export function ExpansionMetricsSection({ candidates, visibleCandidates }) {
 }
 
 /**
- * Partnership Recommendations Section
+ * Partnership Recommendations Section - Calculates recommendations dynamically
  */
-export function PartnershipRecommendationsSection() {
-  // Placeholder data - will be updated with actual partner data
-  const recommendations = [
-    {
-      rank: 1,
-      name: '7-Eleven',
-      coverage: '342 locations',
-      rationale: 'High store density in target areas, existing food service infrastructure, 24/7 operations align with late-night demand patterns.',
-      color: 'blue',
-      icon: Store,
-    },
-    {
-      rank: 2,
-      name: 'Walmart',
-      coverage: '187 locations',
-      rationale: 'High foot traffic, family-oriented demographics match LCE customer base, existing deli/food prep areas available.',
-      color: 'emerald',
-      icon: Building2,
-    },
-    {
-      rank: 3,
-      name: 'Open New Store',
-      coverage: '89 high-potential locations',
-      rationale: 'Locations with predicted sales above $1.5M and no existing partners within 3 miles. Higher investment but full brand control.',
-      color: 'orange',
-      icon: MapPin,
-    },
-  ]
+export function PartnershipRecommendationsSection({ partnerStores = [], candidates = [] }) {
+  // Group partners by brand name
+  const partnersByBrand = partnerStores.reduce((acc, store) => {
+    const brand = store.name || 'Unknown'
+    if (!acc[brand]) {
+      acc[brand] = []
+    }
+    acc[brand].push(store)
+    return acc
+  }, {})
+
+  // Sort brands by count and get top 2
+  const sortedBrands = Object.entries(partnersByBrand)
+    .sort(([, a], [, b]) => b.length - a.length)
+    .slice(0, 2)
+
+  // Count candidates without partner coverage (potential new store locations)
+  const candidatesWithoutPartner = candidates.filter(c => !c.within_convenience_isochrone).length
+
+  // Build dynamic recommendations
+  const recommendations = []
+  const colors = ['blue', 'emerald', 'orange']
+  const icons = [Store, Building2, MapPin]
+
+  sortedBrands.forEach(([brand, stores], idx) => {
+    recommendations.push({
+      rank: idx + 1,
+      name: brand,
+      coverage: `${stores.length} location${stores.length !== 1 ? 's' : ''} in view`,
+      rationale: `Partner stores within current viewport. Consider co-location opportunities for rapid market entry.`,
+      color: colors[idx],
+      icon: icons[idx],
+    })
+  })
+
+  // Always add "Open New Store" option
+  recommendations.push({
+    rank: recommendations.length + 1,
+    name: 'Open New Store',
+    coverage: `${candidatesWithoutPartner} high-potential location${candidatesWithoutPartner !== 1 ? 's' : ''}`,
+    rationale: 'Candidates outside existing partner trade areas. Higher investment but full brand control and market presence.',
+    color: 'orange',
+    icon: MapPin,
+  })
 
   const colorClasses = {
     blue: {
@@ -162,6 +228,8 @@ export function PartnershipRecommendationsSection() {
     },
   }
 
+  const totalPartners = partnerStores.length
+
   return (
     <AccordionItem value="recommendations">
       <AccordionTrigger>
@@ -172,26 +240,28 @@ export function PartnershipRecommendationsSection() {
       </AccordionTrigger>
       <AccordionContent>
         <p className="text-xs text-gray-500 mb-3">
-          Top recommended fulfillment strategies for expansion
+          {totalPartners > 0
+            ? `${totalPartners} partner store${totalPartners !== 1 ? 's' : ''} in current view`
+            : 'Pan/zoom to see partner stores'}
         </p>
 
         <div className="space-y-3">
           {recommendations.map((rec) => {
-            const colors = colorClasses[rec.color]
+            const recColors = colorClasses[rec.color]
             const Icon = rec.icon
             return (
-              <Card key={rec.rank} className={cn('border-l-4 p-3', colors.border, colors.bg)}>
+              <Card key={rec.rank} className={cn('border-l-4 p-3', recColors.border, recColors.bg)}>
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     'flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold flex-shrink-0',
-                    colors.badge
+                    recColors.badge
                   )}>
                     {rec.rank}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Icon className={cn('w-4 h-4', colors.icon)} />
-                      <span className={cn('font-semibold', colors.title)}>{rec.name}</span>
+                      <Icon className={cn('w-4 h-4', recColors.icon)} />
+                      <span className={cn('font-semibold', recColors.title)}>{rec.name}</span>
                     </div>
                     <p className="text-xs text-gray-600 mb-2">
                       <strong>Coverage:</strong> {rec.coverage}
@@ -207,7 +277,7 @@ export function PartnershipRecommendationsSection() {
         </div>
 
         <p className="text-xs text-gray-400 mt-4 italic">
-          * Recommendations update based on visible map area and filters
+          * Updates based on visible map area
         </p>
       </AccordionContent>
     </AccordionItem>
@@ -274,8 +344,8 @@ export function MapLayersSection({ layers, onToggle }) {
             <LayerToggle
               icon={<Store className="w-4 h-4 text-blue-500" />}
               label="Partner Stores"
-              checked={layers.convenience}
-              onChange={() => onToggle('convenience')}
+              checked={layers.partners}
+              onChange={() => onToggle('partners')}
             />
             <LayerToggle
               icon={<Building className="w-4 h-4 text-purple-500" />}
@@ -291,9 +361,12 @@ export function MapLayersSection({ layers, onToggle }) {
 }
 
 /**
- * Filters Section
+ * Filters Section - Handles null filter values (no filter active)
  */
 export function FiltersSection({ filters, ranges, onChange, hasActiveFilters }) {
+  const salesFilterActive = filters.minSales !== null
+  const populationFilterActive = filters.minPopulation !== null
+
   return (
     <AccordionItem value="filters">
       <AccordionTrigger>
@@ -313,15 +386,23 @@ export function FiltersSection({ filters, ranges, onChange, hasActiveFilters }) 
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-600">Min Predicted Sales</span>
-              <span className="font-medium text-gray-900">{formatCurrency(filters.minSales || ranges.sales.min)}</span>
+              <span className={cn(
+                'font-medium',
+                salesFilterActive ? 'text-gray-900' : 'text-gray-400 italic'
+              )}>
+                {salesFilterActive ? formatCurrency(filters.minSales) : 'Not set'}
+              </span>
             </div>
             <input
               type="range"
               min={ranges.sales.min}
               max={ranges.sales.max}
-              value={filters.minSales || ranges.sales.min}
+              value={filters.minSales ?? ranges.sales.min}
               onChange={(e) => onChange({ ...filters, minSales: Number(e.target.value) })}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-orange"
+              className={cn(
+                'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                salesFilterActive ? 'bg-brand-orange/20 accent-brand-orange' : 'bg-gray-200 accent-gray-400'
+              )}
             />
           </div>
 
@@ -329,24 +410,34 @@ export function FiltersSection({ filters, ranges, onChange, hasActiveFilters }) 
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-600">Min Population</span>
-              <span className="font-medium text-gray-900">{formatPopulation(filters.minPopulation || ranges.population.min)}</span>
+              <span className={cn(
+                'font-medium',
+                populationFilterActive ? 'text-gray-900' : 'text-gray-400 italic'
+              )}>
+                {populationFilterActive ? formatPopulation(filters.minPopulation) : 'Not set'}
+              </span>
             </div>
             <input
               type="range"
               min={ranges.population.min}
               max={ranges.population.max}
-              value={filters.minPopulation || ranges.population.min}
+              value={filters.minPopulation ?? ranges.population.min}
               onChange={(e) => onChange({ ...filters, minPopulation: Number(e.target.value) })}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-orange"
+              className={cn(
+                'w-full h-2 rounded-lg appearance-none cursor-pointer',
+                populationFilterActive ? 'bg-brand-orange/20 accent-brand-orange' : 'bg-gray-200 accent-gray-400'
+              )}
             />
           </div>
 
-          <button
-            onClick={() => onChange({ minSales: null, minPopulation: null })}
-            className="w-full text-sm text-gray-500 hover:text-brand-orange transition-colors py-1"
-          >
-            Reset Filters
-          </button>
+          {hasActiveFilters && (
+            <button
+              onClick={() => onChange({ minSales: null, minPopulation: null })}
+              className="w-full text-sm text-gray-500 hover:text-brand-orange transition-colors py-2 border border-gray-200 rounded-lg hover:border-brand-orange"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       </AccordionContent>
     </AccordionItem>

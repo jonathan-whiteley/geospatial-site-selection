@@ -8,8 +8,10 @@ const DEFAULT_LAYERS = {
   h3Hexagons: true,
   candidates: false,
   candidateIsochrones: false,
-  convenience: false,
+  partners: false,
   competitors: false,
+  // Backward compatibility alias (deprecated)
+  convenience: false,
 }
 
 /**
@@ -21,26 +23,28 @@ const MODE_LAYERS = {
     h3Hexagons: true,
     candidates: false,
     candidateIsochrones: false,
-    convenience: false,
+    partners: false,
     competitors: false,
+    convenience: false,
   },
   expansion: {
     currentStores: true,
     h3Hexagons: true,
     candidates: true,
     candidateIsochrones: false,
-    convenience: true,
+    partners: true,
     competitors: false,
+    convenience: true,
   },
 }
 
 /**
- * Default filter values
+ * Default filter values (null = no filter active)
  */
 const DEFAULT_FILTERS = {
-  minSales: 500000,
+  minSales: null,
   maxSales: null,
-  minPopulation: 5000,
+  minPopulation: null,
   maxPopulation: null,
 }
 
@@ -66,13 +70,14 @@ export const PARAM_GRID = {
  * Hook for managing map state including mode, layers, filters, and selection
  */
 export function useMapState() {
-  const [mode, setModeState] = useState('current')
-  const [layers, setLayers] = useState(DEFAULT_LAYERS)
+  const [mode, setModeState] = useState('expansion')
+  const [layers, setLayers] = useState(MODE_LAYERS.expansion)
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [optimizationParams, setOptimizationParams] = useState(DEFAULT_OPTIMIZATION_PARAMS)
   const [optimizationResults, setOptimizationResults] = useState(null)
   const [selectedStore, setSelectedStore] = useState(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
+  const [mapBounds, setMapBounds] = useState(null)
 
   // Set mode and update layers accordingly
   const setMode = useCallback((newMode) => {
@@ -136,6 +141,11 @@ export function useMapState() {
     setOptimizationResults(null)
   }, [])
 
+  // Update map bounds (called when user pans/zooms)
+  const updateMapBounds = useCallback((bounds) => {
+    setMapBounds(bounds)
+  }, [])
+
   return {
     // State
     mode,
@@ -145,6 +155,7 @@ export function useMapState() {
     optimizationResults,
     selectedStore,
     detailPanelOpen,
+    mapBounds,
 
     // Actions
     setMode,
@@ -156,5 +167,6 @@ export function useMapState() {
     selectStore,
     closeDetailPanel,
     clearOptimization,
+    updateMapBounds,
   }
 }

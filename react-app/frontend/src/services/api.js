@@ -31,15 +31,19 @@ export async function getStoreIsochrones() {
   return response.data
 }
 
-export async function getConvenienceIsochrones() {
-  const response = await api.get('/stores/convenience')
+export async function getPartnerIsochrones() {
+  const response = await api.get('/stores/partners')
   return response.data
 }
 
-export async function getConvenienceStores() {
-  const response = await api.get('/stores/convenience/stores')
+export async function getPartnerStores() {
+  const response = await api.get('/stores/partners/stores')
   return response.data
 }
+
+// Backward compatibility aliases (deprecated)
+export const getConvenienceIsochrones = getPartnerIsochrones
+export const getConvenienceStores = getPartnerStores
 
 export async function getCompetitors() {
   const response = await api.get('/stores/competitors')

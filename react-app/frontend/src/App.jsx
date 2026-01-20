@@ -1,8 +1,8 @@
-import React, { useMemo, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { AppLayout, AppHeader } from './components/layout/AppLayout'
 import {
   Sidebar,
-  ModeTabs,
+  ExpansionHeader,
   MapLayersSection,
   ExpansionMetricsSection,
   PartnershipRecommendationsSection,
@@ -16,6 +16,7 @@ import { Accordion } from './components/ui/Accordion'
 import { useMapState } from './hooks/useMapState'
 import { useStoreData } from './hooks/useStoreData'
 import { useOptimization } from './hooks/useOptimization'
+import { filterByBounds } from './lib/utils'
 
 // Logo path
 const LOGO_SRC = '/logo.png'
@@ -68,7 +69,7 @@ function App() {
     optimizationResults,
     selectedStore,
     detailPanelOpen,
-    setMode,
+    mapBounds,
     toggleLayer,
     updateFilters,
     updateOptimizationParams,
@@ -76,6 +77,7 @@ function App() {
     selectStore,
     closeDetailPanel,
     clearOptimization,
+    updateMapBounds,
   } = useMapState()
 
   // Optimization hook
@@ -84,19 +86,35 @@ function App() {
     loading: optimizationLoading,
   } = useOptimization(expansionData, setOptimizationResults)
 
-  // Filter candidates based on current filters
-  const filteredCandidates = useMemo(() => {
-    let candidates = expansionData.candidates || []
+  // Get partner stores from network data
+  const partnerStores = useMemo(() => {
+    return networkData?.partnerStores || networkData?.convenienceStores || []
+  }, [networkData])
 
-    if (filters.minSales) {
+  // Filter candidates by viewport bounds first
+  const viewportCandidates = useMemo(() => {
+    const candidates = expansionData.candidates || []
+    return filterByBounds(candidates, mapBounds)
+  }, [expansionData.candidates, mapBounds])
+
+  // Filter partner stores by viewport bounds
+  const viewportPartnerStores = useMemo(() => {
+    return filterByBounds(partnerStores, mapBounds)
+  }, [partnerStores, mapBounds])
+
+  // Apply slider filters to viewport candidates
+  const filteredCandidates = useMemo(() => {
+    let candidates = viewportCandidates
+
+    if (filters.minSales !== null) {
       candidates = candidates.filter(c => (c.predicted_annual_sales || 0) >= filters.minSales)
     }
-    if (filters.minPopulation) {
+    if (filters.minPopulation !== null) {
       candidates = candidates.filter(c => (c.population || 0) >= filters.minPopulation)
     }
 
     return candidates
-  }, [expansionData.candidates, filters])
+  }, [viewportCandidates, filters])
 
   // Get visible candidates (filtered or optimized)
   const visibleCandidates = useMemo(() => {
@@ -107,7 +125,7 @@ function App() {
   }, [optimizationResults, filteredCandidates])
 
   // Check if filters are active
-  const hasActiveFilters = filters.minSales || filters.minPopulation
+  const hasActiveFilters = filters.minSales !== null || filters.minPopulation !== null
 
   // Handle optimization run
   const handleRunOptimization = useCallback(async () => {
@@ -178,10 +196,8 @@ function App() {
   // Total current stores count for header
   const totalStores = networkData?.stores?.length || 0
 
-  // Determine which accordion sections to open by default
-  const defaultAccordionValues = mode === 'expansion'
-    ? ['layers', 'metrics', 'filters', 'optimization']
-    : ['layers', 'metrics']
+  // Determine which accordion sections to open by default (filters/optimization collapsed)
+  const defaultAccordionValues = ['layers', 'metrics', 'recommendations']
 
   // Show loading state
   if (dataLoading) {
@@ -190,7 +206,7 @@ function App() {
         header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
         sidebar={
           <Sidebar>
-            <ModeTabs activeMode={mode} onModeChange={setMode} />
+            <ExpansionHeader />
             <div className="flex-1 flex items-center justify-center">
               <LoadingSpinner message="Loading store data..." />
             </div>
@@ -209,7 +225,7 @@ function App() {
         header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
         sidebar={
           <Sidebar>
-            <ModeTabs activeMode={mode} onModeChange={setMode} />
+            <ExpansionHeader />
             <div className="p-4">
               <ErrorDisplay error={dataError} />
             </div>
@@ -232,7 +248,7 @@ function App() {
       }
       sidebar={
         <Sidebar>
-          <ModeTabs activeMode={mode} onModeChange={setMode} />
+          <ExpansionHeader />
 
           {/* Scrollable accordion content */}
           <div className="flex-1 overflow-y-auto">
@@ -247,40 +263,41 @@ function App() {
                 onToggle={toggleLayer}
               />
 
-              {/* Expansion Metrics (always visible) */}
+              {/* Expansion Metrics */}
               <ExpansionMetricsSection
                 candidates={expansionData.candidates}
+                viewportCandidates={viewportCandidates}
                 visibleCandidates={visibleCandidates}
+                hasActiveFilters={hasActiveFilters}
               />
 
               {/* Partnership Recommendations */}
-              <PartnershipRecommendationsSection />
+              <PartnershipRecommendationsSection
+                partnerStores={viewportPartnerStores}
+                candidates={viewportCandidates}
+              />
 
-              {/* Filters (expansion mode) */}
-              {mode === 'expansion' && (
-                <FiltersSection
-                  filters={filters}
-                  ranges={{
-                    sales: salesRange,
-                    population: populationRange,
-                  }}
-                  onChange={updateFilters}
-                  hasActiveFilters={hasActiveFilters}
-                />
-              )}
+              {/* Filters */}
+              <FiltersSection
+                filters={filters}
+                ranges={{
+                  sales: salesRange,
+                  population: populationRange,
+                }}
+                onChange={updateFilters}
+                hasActiveFilters={hasActiveFilters}
+              />
 
-              {/* Optimization (expansion mode) */}
-              {mode === 'expansion' && (
-                <OptimizationSection
-                  params={optimizationParams}
-                  onChange={updateOptimizationParams}
-                  onRun={handleRunOptimization}
-                  onClear={clearOptimization}
-                  onExport={handleExport}
-                  hasResults={optimizationResults && optimizationResults.length > 0}
-                  loading={optimizationLoading}
-                />
-              )}
+              {/* Optimization */}
+              <OptimizationSection
+                params={optimizationParams}
+                onChange={updateOptimizationParams}
+                onRun={handleRunOptimization}
+                onClear={clearOptimization}
+                onExport={handleExport}
+                hasResults={optimizationResults && optimizationResults.length > 0}
+                loading={optimizationLoading}
+              />
             </Accordion>
           </div>
         </Sidebar>
@@ -292,6 +309,7 @@ function App() {
         layers={layers}
         salesRange={salesRange}
         onStoreClick={selectStore}
+        onBoundsChange={updateMapBounds}
       />
 
       <DetailPanel

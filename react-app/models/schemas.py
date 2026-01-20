@@ -27,20 +27,26 @@ class Isochrone(BaseModel):
     isochrone_geojson: str
 
 
-class ConvenienceIsochrone(BaseModel):
-    """Convenience store trade area with candidate info."""
+class PartnerIsochrone(BaseModel):
+    """Partner store trade area with candidate info."""
     location_id: str
     isochrone_geojson: str
     candidate_count_in_isochrone: Optional[int] = 0
     total_candidate_sales_in_isochrone: Optional[float] = 0
 
 
-class ConvenienceStore(BaseModel):
-    """Potential partner convenience store."""
+class PartnerStore(BaseModel):
+    """Potential partner store (e.g., convenience stores, Walmart)."""
     name: str
     latitude: float
     longitude: float
     poi_category: Optional[str] = None
+    poi_subcategory: Optional[str] = None
+
+
+# Backward compatibility aliases (deprecated)
+ConvenienceIsochrone = PartnerIsochrone
+ConvenienceStore = PartnerStore
 
 
 class Competitor(BaseModel):
@@ -68,15 +74,20 @@ class ExpansionCandidate(BaseModel):
     total_poi_count: Optional[int] = 0
     min_distance_to_existing: Optional[float] = None
     nearest_existing_store: Optional[str] = None
-    within_convenience_isochrone: Optional[bool] = False
-    convenience_store_name: Optional[str] = None
-    convenience_city: Optional[str] = None
-    convenience_drive_time: Optional[float] = None
+    within_partner_isochrone: Optional[bool] = False
+    partner_store_name: Optional[str] = None
+    partner_city: Optional[str] = None
+    partner_drive_time: Optional[float] = None
     fulfillment_strategy: Optional[str] = "new_store"
     quality_tier: Optional[str] = None
     center_lat: Optional[float] = None
     center_lon: Optional[float] = None
     geometry_geojson: Optional[str] = None
+    # Backward compatibility aliases (deprecated)
+    within_convenience_isochrone: Optional[bool] = None
+    convenience_store_name: Optional[str] = None
+    convenience_city: Optional[str] = None
+    convenience_drive_time: Optional[float] = None
 
 
 # ============================================
@@ -128,18 +139,23 @@ class CurrentNetworkResponse(BaseModel):
     """Response containing all current network data."""
     stores: List[Store]
     isochrones: List[Isochrone]
-    convenience_isochrones: List[ConvenienceIsochrone]
-    convenience_stores: List[ConvenienceStore]
+    partner_isochrones: List[PartnerIsochrone]
+    partner_stores: List[PartnerStore]
     competitors: List[Competitor]
     ma_boundary: Optional[Any] = None
+    # Backward compatibility aliases (deprecated)
+    convenience_isochrones: Optional[List[PartnerIsochrone]] = None
+    convenience_stores: Optional[List[PartnerStore]] = None
 
 
 class ExpansionDataResponse(BaseModel):
     """Response containing all expansion analysis data."""
     candidates: List[ExpansionCandidate]
     current_stores: List[Store]
-    convenience_stores: List[ConvenienceStore]
+    partner_stores: List[PartnerStore]
     competitors: List[Competitor]
+    # Backward compatibility alias (deprecated)
+    convenience_stores: Optional[List[PartnerStore]] = None
 
 
 class HealthResponse(BaseModel):
