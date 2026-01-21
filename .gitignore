@@ -35,7 +35,6 @@ raw_data_do_not_load/
 *.geojson
 
 # Exclude these folders
-docs/
 references/
 
 # Logs
