@@ -85,7 +85,7 @@ class DataService:
                 FROM {silver}.isochrones_lce iso
                 INNER JOIN {gold}.viz_existing_stores stores
                     ON iso.location_id = stores.store_number
-                WHERE stores.state = 'MA'
+                WHERE stores.state IN ('MA', 'Massachusetts')
             """)
             result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
             elapsed = time.time() - start
