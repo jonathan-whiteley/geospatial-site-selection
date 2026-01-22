@@ -197,13 +197,13 @@ export function DetailPanel({ store, isOpen, onClose, mode }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-gray-500">
-                Store Performance
+                Store Trade Area
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-600">
                 This store serves a population of {formatNumber(store.population || 0)} with{' '}
-                {formatNumber(store.total_poi_count || 0)} points of interest in the trade area.
+                {formatNumber(store.total_poi_count || 0)} points of interest in the trade area within 5 minute drive time.
               </p>
             </CardContent>
           </Card>

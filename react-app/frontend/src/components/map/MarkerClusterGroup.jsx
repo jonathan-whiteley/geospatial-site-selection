@@ -89,7 +89,10 @@ export default function MarkerClusterGroup({ children }) {
               const popupContent = typeof popup.props.children === 'string'
                 ? popup.props.children
                 : renderPopupContent(popup.props.children)
-              marker.bindPopup(popupContent)
+              marker.bindPopup(popupContent, {
+                className: 'modern-popup',
+                minWidth: 180
+              })
             }
 
             cluster.addLayer(marker)
