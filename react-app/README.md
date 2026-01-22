@@ -1,4 +1,4 @@
-# Geospatial Retail Site Selection - React + FastAPI
+# Geospatial Retail Site Selection - React + FastAPI App
 
 A modern React frontend with FastAPI backend for retail site selection and expansion analysis.
 

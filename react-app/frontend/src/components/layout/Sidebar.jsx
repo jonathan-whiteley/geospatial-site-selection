@@ -28,18 +28,23 @@ export function Sidebar({ children, className }) {
 }
 
 /**
- * Static header for Expansion Planning mode (replaces ModeTabs)
+ * Tab toggle header for Overview and Chat modes
  */
-export function ExpansionHeader() {
+export function ExpansionHeader({ activeTab = 'overview', onTabChange }) {
   return (
-    <div className="p-4 border-b border-gray-100">
-      <div className="flex items-center gap-2">
-        <TrendingUp className="w-5 h-5 text-brand-orange" />
-        <h2 className="text-lg font-semibold text-gray-900">Expansion Planning</h2>
-      </div>
-      <p className="text-xs text-gray-500 mt-1">
-        Analyze candidates and partnership opportunities
-      </p>
+    <div className="p-3 border-b border-gray-100">
+      <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">
+            <Eye className="w-4 h-4 mr-2" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="chat">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Chat
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
     </div>
   )
 }
@@ -147,7 +152,7 @@ export function ExpansionMetricsSection({ candidates, viewportCandidates, visibl
           {/* Global context */}
           <div className="pt-2 border-t border-gray-200 mt-2">
             <p className="text-xs text-gray-400">
-              {totalCount.toLocaleString()} total candidates across all regions
+              {totalCount.toLocaleString()} total areas of unmet demand state-wide
             </p>
           </div>
         </div>

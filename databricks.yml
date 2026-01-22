@@ -98,7 +98,7 @@ targets:
     default: true
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
@@ -107,7 +107,7 @@ targets:
     mode: development
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
@@ -116,7 +116,7 @@ variables:
   # Unity Catalog
   catalog:
     description: "Unity Catalog name"
-    default: "ioc_sandbox"
+    default: "jdub_demo"
 
   bronze_schema:
     description: "Bronze schema for raw ingested data"
@@ -172,6 +172,7 @@ variables:
   lce_locations_raw_table:
     description: "Source table with current store locations and sales data (full 3-part name)"
     default: "ioc_sandbox.ai_strategy.lce_locations_ne"
+
   # Standardized output table name (created by bronze job)
   current_stores_table:
     description: "Current stores table name with sales data (created by bronze_census_ingestion job)"

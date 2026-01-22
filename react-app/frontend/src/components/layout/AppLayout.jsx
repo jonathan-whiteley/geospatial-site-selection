@@ -33,7 +33,7 @@ export function AppLayout({ children, sidebar, header, kpiBar }) {
 /**
  * Application header with Little Caesars branding
  */
-export function AppHeader({ logoSrc, totalStores }) {
+export function AppHeader({ logoSrc, totalStores, stateName = 'Massachusetts' }) {
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-50">
       {/* Left side - Logo and title */}
@@ -55,14 +55,14 @@ export function AppHeader({ logoSrc, totalStores }) {
         </div>
       </div>
 
-      {/* Right side - Store count and status */}
+      {/* Right side - State and network status */}
       <div className="flex items-center gap-4">
         {/* Orange accent divider */}
         <div className="h-8 w-1 bg-brand-orange rounded-full opacity-30" />
 
         <div className="text-right">
           <p className="text-sm font-medium text-gray-700">
-            {totalStores?.toLocaleString() || '—'} stores
+            {stateName}
           </p>
           <p className="text-xs text-gray-500">Current Network</p>
         </div>

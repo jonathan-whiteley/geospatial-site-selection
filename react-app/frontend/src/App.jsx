@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import { AppLayout, AppHeader } from './components/layout/AppLayout'
 import {
   Sidebar,
@@ -47,9 +47,31 @@ function ErrorDisplay({ error }) {
 }
 
 /**
+ * Chat placeholder component
+ */
+function ChatPlaceholder() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-16 h-16 bg-brand-orange/10 rounded-full flex items-center justify-center mb-4">
+        <svg className="w-8 h-8 text-brand-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">AI Chat Assistant</h3>
+      <p className="text-sm text-gray-500 max-w-xs">
+        Coming soon: Ask questions about your expansion data and get AI-powered insights.
+      </p>
+    </div>
+  )
+}
+
+/**
  * Main App component
  */
 function App() {
+  // Tab state for sidebar
+  const [activeTab, setActiveTab] = useState('overview')
+
   // Load store data
   const {
     networkData,
@@ -203,10 +225,10 @@ function App() {
   if (dataLoading) {
     return (
       <AppLayout
-        header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
+        header={<AppHeader logoSrc={LOGO_SRC} />}
         sidebar={
           <Sidebar>
-            <ExpansionHeader />
+            <ExpansionHeader activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="flex-1 flex items-center justify-center">
               <LoadingSpinner message="Loading store data..." />
             </div>
@@ -222,10 +244,10 @@ function App() {
   if (dataError) {
     return (
       <AppLayout
-        header={<AppHeader logoSrc={LOGO_SRC} totalStores={0} />}
+        header={<AppHeader logoSrc={LOGO_SRC} />}
         sidebar={
           <Sidebar>
-            <ExpansionHeader />
+            <ExpansionHeader activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="p-4">
               <ErrorDisplay error={dataError} />
             </div>
@@ -239,7 +261,7 @@ function App() {
 
   return (
     <AppLayout
-      header={<AppHeader logoSrc={LOGO_SRC} totalStores={totalStores} />}
+      header={<AppHeader logoSrc={LOGO_SRC} stateName="Massachusetts" />}
       kpiBar={
         <CurrentNetworkKPIs
           networkData={networkData}
@@ -248,58 +270,62 @@ function App() {
       }
       sidebar={
         <Sidebar>
-          <ExpansionHeader />
+          <ExpansionHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
-          {/* Scrollable accordion content */}
-          <div className="flex-1 overflow-y-auto">
-            <Accordion
-              type="multiple"
-              defaultValue={defaultAccordionValues}
-              className="w-full"
-            >
-              {/* Map Layers */}
-              <MapLayersSection
-                layers={layers}
-                onToggle={toggleLayer}
-              />
+          {activeTab === 'overview' ? (
+            /* Scrollable accordion content */
+            <div className="flex-1 overflow-y-auto">
+              <Accordion
+                type="multiple"
+                defaultValue={defaultAccordionValues}
+                className="w-full"
+              >
+                {/* Map Layers */}
+                <MapLayersSection
+                  layers={layers}
+                  onToggle={toggleLayer}
+                />
 
-              {/* Expansion Metrics */}
-              <ExpansionMetricsSection
-                candidates={expansionData.candidates}
-                viewportCandidates={viewportCandidates}
-                visibleCandidates={visibleCandidates}
-                hasActiveFilters={hasActiveFilters}
-              />
+                {/* Expansion Metrics */}
+                <ExpansionMetricsSection
+                  candidates={expansionData.candidates}
+                  viewportCandidates={viewportCandidates}
+                  visibleCandidates={visibleCandidates}
+                  hasActiveFilters={hasActiveFilters}
+                />
 
-              {/* Partnership Recommendations */}
-              <PartnershipRecommendationsSection
-                partnerStores={viewportPartnerStores}
-                candidates={viewportCandidates}
-              />
+                {/* Partnership Recommendations */}
+                <PartnershipRecommendationsSection
+                  partnerStores={viewportPartnerStores}
+                  candidates={viewportCandidates}
+                />
 
-              {/* Filters */}
-              <FiltersSection
-                filters={filters}
-                ranges={{
-                  sales: salesRange,
-                  population: populationRange,
-                }}
-                onChange={updateFilters}
-                hasActiveFilters={hasActiveFilters}
-              />
+                {/* Filters */}
+                <FiltersSection
+                  filters={filters}
+                  ranges={{
+                    sales: salesRange,
+                    population: populationRange,
+                  }}
+                  onChange={updateFilters}
+                  hasActiveFilters={hasActiveFilters}
+                />
 
-              {/* Optimization */}
-              <OptimizationSection
-                params={optimizationParams}
-                onChange={updateOptimizationParams}
-                onRun={handleRunOptimization}
-                onClear={clearOptimization}
-                onExport={handleExport}
-                hasResults={optimizationResults && optimizationResults.length > 0}
-                loading={optimizationLoading}
-              />
-            </Accordion>
-          </div>
+                {/* Optimization */}
+                <OptimizationSection
+                  params={optimizationParams}
+                  onChange={updateOptimizationParams}
+                  onRun={handleRunOptimization}
+                  onClear={clearOptimization}
+                  onExport={handleExport}
+                  hasResults={optimizationResults && optimizationResults.length > 0}
+                  loading={optimizationLoading}
+                />
+              </Accordion>
+            </div>
+          ) : (
+            <ChatPlaceholder />
+          )}
         </Sidebar>
       }
     >
