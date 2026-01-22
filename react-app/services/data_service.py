@@ -75,17 +75,19 @@ class DataService:
             return []
 
     def load_isochrones(self) -> List[Dict[str, Any]]:
-        """Load LCE store trade area isochrones from viz_existing_stores (pre-computed, MA only)."""
+        """Load LCE store trade area isochrones from silver table (MA only)."""
+        silver = self.settings.silver_table_prefix
         gold = self.settings.gold_table_prefix
         try:
             start = time.time()
-            print(f"Loading LCE isochrones from viz_existing_stores (MA only)...")
-            # Use pre-computed isochrone_geojson from gold table (no silver join needed)
+            print(f"Loading LCE isochrones from silver table (MA only)...")
+            # Use silver table isochrones_lce with ST_AsGeoJSON conversion, filtered to MA
             isochrones_df = self.db.execute_query(f"""
-                SELECT store_number, isochrone_geojson
-                FROM {gold}.viz_existing_stores
-                WHERE isochrone_geojson IS NOT NULL
-                  AND (UPPER(state) IN ('MA', 'MASSACHUSETTS') OR state IS NULL)
+                SELECT i.store_number, ST_AsGeoJSON(i.isochrone_geometry) as isochrone_geojson
+                FROM {silver}.isochrones_lce i
+                JOIN {gold}.viz_existing_stores s ON i.store_number = s.store_number
+                WHERE i.isochrone_geometry IS NOT NULL
+                  AND (UPPER(s.state) IN ('MA', 'MASSACHUSETTS') OR s.state IS NULL)
             """)
             result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
             elapsed = time.time() - start
