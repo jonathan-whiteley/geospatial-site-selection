@@ -53,17 +53,18 @@ class DataService:
     # ========== Individual Loaders (Phase 2.1: Split N+1 queries) ==========
 
     def load_stores(self) -> List[Dict[str, Any]]:
-        """Load existing store locations."""
+        """Load existing store locations (MA only)."""
         gold = self.settings.gold_table_prefix
         try:
             start = time.time()
-            print(f"Loading viz_existing_stores...")
+            print(f"Loading viz_existing_stores (MA only)...")
             stores_df = self.db.execute_query(f"""
                 SELECT store_number, city, state, latitude, longitude,
                        population, poi_count as total_poi_count,
                        h3_cell_id, geometry_geojson,
                        COALESCE(annual_sales, 0) as annual_sales
                 FROM {gold}.viz_existing_stores
+                WHERE UPPER(state) IN ('MA', 'MASSACHUSETTS') OR state IS NULL
             """)
             result = stores_df.to_dict('records') if not stores_df.empty else []
             elapsed = time.time() - start
@@ -74,16 +75,17 @@ class DataService:
             return []
 
     def load_isochrones(self) -> List[Dict[str, Any]]:
-        """Load LCE store trade area isochrones from viz_existing_stores (pre-computed)."""
+        """Load LCE store trade area isochrones from viz_existing_stores (pre-computed, MA only)."""
         gold = self.settings.gold_table_prefix
         try:
             start = time.time()
-            print(f"Loading LCE isochrones from viz_existing_stores...")
+            print(f"Loading LCE isochrones from viz_existing_stores (MA only)...")
             # Use pre-computed isochrone_geojson from gold table (no silver join needed)
             isochrones_df = self.db.execute_query(f"""
                 SELECT store_number, isochrone_geojson
                 FROM {gold}.viz_existing_stores
                 WHERE isochrone_geojson IS NOT NULL
+                  AND (UPPER(state) IN ('MA', 'MASSACHUSETTS') OR state IS NULL)
             """)
             result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
             elapsed = time.time() - start
