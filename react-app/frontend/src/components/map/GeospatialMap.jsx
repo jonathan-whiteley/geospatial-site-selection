@@ -131,33 +131,21 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
           }}
         >
           <Popup className="modern-popup">
-            <div className="min-w-[220px]">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                <div>
-                  <div className="font-semibold text-gray-900">Store #{store.store_number}</div>
-                  <div className="text-xs text-gray-500">{store.city}, {store.state}</div>
-                </div>
-              </div>
-              <div className="pt-2 space-y-1.5">
-                {(store.annual_sales || store.predicted_annual_sales) > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Annual Sales</span>
-                    <span className="text-sm font-semibold text-emerald-600">
-                      ${Math.round(store.annual_sales || store.predicted_annual_sales || 0).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">Population</span>
-                  <span className="text-sm font-medium text-gray-700">{Math.round(store.population || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">POI Count</span>
-                  <span className="text-sm font-medium text-gray-700">{(store.total_poi_count || 0).toLocaleString()}</span>
-                </div>
+            <div className="popup-header">
+              <div className="popup-dot green"></div>
+              <div>
+                <div className="popup-title">Store #{store.store_number}</div>
+                <div className="popup-subtitle">{store.city}, {store.state}</div>
               </div>
             </div>
+            {(store.annual_sales || store.predicted_annual_sales) > 0 && (
+              <div className="popup-row">
+                <span className="popup-label">Annual Sales</span>
+                <span className="popup-value">
+                  ${Math.round(store.annual_sales || store.predicted_annual_sales || 0).toLocaleString()}
+                </span>
+              </div>
+            )}
           </Popup>
         </CircleMarker>
       ))}
@@ -227,32 +215,18 @@ function CandidateMarkers({ candidates, visible, onStoreClick }) {
           }}
         >
           <Popup className="modern-popup">
-            <div className="min-w-[220px]">
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                <div>
-                  <div className="font-semibold text-gray-900">Expansion Candidate</div>
-                  <div className="text-xs text-gray-500">{candidate.city}, {candidate.state}</div>
-                </div>
+            <div className="popup-header">
+              <div className="popup-dot red"></div>
+              <div>
+                <div className="popup-title">Candidate Site</div>
+                <div className="popup-subtitle">{candidate.city}, {candidate.state}</div>
               </div>
-              <div className="pt-2 space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">Predicted Sales</span>
-                  <span className="text-sm font-semibold text-emerald-600">
-                    ${(candidate.predicted_annual_sales || 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-500">Population</span>
-                  <span className="text-sm font-medium text-gray-700">{Math.round(candidate.population || 0).toLocaleString()}</span>
-                </div>
-                {candidate.within_convenience_isochrone && (
-                  <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                    <span className="text-xs text-gray-500">Partner</span>
-                    <span className="text-xs font-medium text-blue-600">{candidate.convenience_store_name || 'Available'}</span>
-                  </div>
-                )}
-              </div>
+            </div>
+            <div className="popup-row">
+              <span className="popup-label">Predicted Sales</span>
+              <span className="popup-value">
+                ${Math.round(candidate.predicted_annual_sales || 0).toLocaleString()}
+              </span>
             </div>
           </Popup>
         </CircleMarker>
