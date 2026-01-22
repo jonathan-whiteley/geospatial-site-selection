@@ -7,7 +7,7 @@ A modern React frontend with FastAPI backend for retail site selection and expan
 - **Backend**: FastAPI (Python) with Databricks SQL connector
 - **Frontend**: React + Vite + Tailwind CSS + react-leaflet
 - **Auth**: Service Principal (Databricks Apps) or PAT (local development)
-- **Map Features**: H3 hexagons, isochrones, marker clustering, optimization
+- **Map Features**: Isochrones, marker clustering, trade area analysis, optimization
 
 ## Project Structure
 
@@ -18,6 +18,7 @@ react-app/
 ├── requirements.txt           # Python dependencies
 ├── api/routes/                # API endpoints
 │   ├── health.py              # Health check
+│   ├── init.py                # Consolidated initial data load (parallel queries)
 │   ├── stores.py              # Store data endpoints
 │   ├── expansion.py           # Expansion candidates
 │   ├── optimization.py        # Optimization lookup
@@ -107,9 +108,10 @@ react-app/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
+| `/api/init` | GET | **Consolidated initial load** (parallel queries, pre-computed ranges) |
 | `/api/stores/current` | GET | Current stores |
 | `/api/stores/isochrones` | GET | LCE trade areas |
-| `/api/stores/convenience` | GET | Convenience isochrones |
+| `/api/stores/partners` | GET | Partner store isochrones |
 | `/api/stores/competitors` | GET | Competitor locations |
 | `/api/stores/network` | GET | All network data |
 | `/api/expansion/candidates` | GET | Expansion candidates (filterable) |
@@ -118,39 +120,52 @@ react-app/
 | `/api/optimization/lookup` | POST | Lookup specific params |
 | `/api/metrics/network` | GET | Aggregate metrics |
 
+> **Performance:** The `/api/init` endpoint uses `ThreadPoolExecutor` to run 6 database queries in parallel with thread-local connections, significantly reducing initial load time.
+
 ## Features
 
-### Overview Mode
-- Current store locations with trade areas
-- H3 hexagon demand heatmap
-- Store metrics and statistics
+### Sidebar Tabs
+- **Overview Tab**: Expansion metrics, filter controls, layer toggles, partnership recommendations
+- **Chat Tab**: AI assistant placeholder for future conversational analytics
 
-### Detail Mode
-- Expansion candidate analysis
-- Filterable by sales and population
-- Optimization with distance constraints
-- Partner vs new store recommendations
-- CSV export
+### Left Panel Sections
+- **Map Layers**: Toggle visibility for network and expansion layers
+- **Expansion Metrics**: Population and sales distribution charts
+- **Filter Candidates**: Filter by sales, population, fulfillment strategy, quality tier
+- **Partnership Recommendations**: Identify partner vs greenfield opportunities
 
 ### Map Layers
-- Current stores (green)
-- Expansion candidates (red, clustered)
-- H3 hexagons with sales gradient
-- LCE isochrones (green)
-- Convenience isochrones (blue)
-- Competitor locations (purple)
+- **Current Stores** (green markers) - Existing store locations
+- **Expansion Candidates** (red, clustered) - AI-scored opportunity areas
+- **Candidate Trade Areas** - 5-minute drive-time circles with sales-based gradient (darker = higher predicted sales)
+- **Store Trade Areas** (green) - LCE isochrones showing current coverage
+- **Partner Isochrones** (blue) - Partner store coverage areas
+- **Competitor Locations** (purple markers) - Competitor stores
 
 ## Data Requirements
 
 The app expects the following tables in Unity Catalog:
 
 **Gold Layer** (`geo_gold`):
-- `viz_existing_stores` - Current store locations
-- `viz_expansion_candidates` - H3 cells with predictions
-- `viz_convenience` - Partner store data
+- `viz_existing_stores` - Current store locations with sales and POI data
+- `viz_expansion_candidates` - H3 cells with ML-predicted sales, demographics
+- `viz_partners` - Partner store data with isochrones
 - `viz_competitors` - Competitor locations
-- `viz_optimization_results` - Pre-computed optimization
-- `viz_network_metrics` - Aggregate metrics
+- `viz_optimization_results` - Pre-computed optimization (27 parameter combinations)
+- `viz_network_metrics` - Aggregate network KPIs
 
 **Silver Layer** (`geo_silver`):
-- `isochrones_lce` - Store trade area polygons
+- `isochrones_lce` - Store trade area polygons (5-minute drive-time)
+
+**Bronze Layer** (`geo_bronze`):
+- `census_states` - State boundary geometries (for MA outline)
+
+## Performance Optimizations
+
+- **Consolidated API**: Single `/api/init` endpoint reduces frontend API calls from 3+ to 1
+- **Parallel Queries**: ThreadPoolExecutor runs 6 database queries concurrently
+- **Thread-Local Connections**: Each thread gets its own Databricks SQL connection
+- **Pre-computed Ranges**: Sales/population min/max calculated server-side (avoids O(n) frontend loops)
+- **Connection Pooling**: OAuth token cached and shared across threads
+
+See `docs/PERFORMANCE_OPTIMIZATION_PLAN.md` for the full optimization roadmap.

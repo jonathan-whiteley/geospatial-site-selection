@@ -38,14 +38,18 @@ Run greedy optimization to select N best locations with configurable spacing con
 ```
 geospatial-retail-site-selection/
 ├── databricks.yml              # Asset Bundle config
-├── app/
-│   ├── app_v2.py               # Streamlit dashboard (3 tabs)
-│   └── app.yaml                # App deployment config
+├── react-app/                  # Modern React + FastAPI dashboard
+│   ├── main.py                 # FastAPI entry point
+│   ├── app.yaml                # Databricks Apps config
+│   ├── api/routes/             # API endpoints (init, stores, expansion, optimization)
+│   ├── core/                   # Config and database connection
+│   ├── services/               # Data service layer
+│   └── frontend/               # React + Vite + Tailwind + Leaflet
 ├── resources/                  # DABs job definitions (serverless)
 │   ├── bronze_job.yml
 │   ├── silver_job.yml
 │   ├── gold_job.yml
-│   └── orchestration_job.yml  # End-to-end pipeline
+│   └── orchestration_job.yml   # End-to-end pipeline
 └── transformations/
     ├── 01_bronze/              # Raw ingestion notebooks
     ├── 02_silver/              # Geospatial processing
@@ -57,6 +61,7 @@ geospatial-retail-site-selection/
 - **Valhalla API** for drive-time isochrones
 - **XGBoost** for sales prediction with spatial cross-validation
 - **CARTO Marketplace** for demographic features
+- **React + FastAPI** for interactive dashboard with Leaflet maps
 
 ---
 
@@ -172,7 +177,13 @@ databricks bundle run gold_feature_engineering
 ### 6️⃣ Deploy App (Optional)
 
 ```bash
-databricks apps deploy geospatial-site-selection --source-code-path app/
+# Build frontend first
+cd react-app/frontend
+npm install && npm run build
+cd ../..
+
+# Deploy to Databricks Apps
+databricks apps deploy geospatial-site-selection --source-code-path react-app/
 ```
 
 ---
@@ -212,4 +223,4 @@ databricks volumes create osm_data {catalog}.geo_bronze --volume-type MANAGED
 
 ---
 
-**Built with:** Databricks • Unity Catalog • H3 • XGBoost • Streamlit • Valhalla • CARTO
+**Built with:** Databricks • Unity Catalog • H3 • XGBoost • React • FastAPI • Leaflet • Valhalla • CARTO
