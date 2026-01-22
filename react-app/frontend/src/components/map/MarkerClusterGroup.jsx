@@ -119,23 +119,36 @@ function extractSalesFromChild(child) {
   return 0
 }
 
-// Helper to render popup content as string
+// Helper to render popup content as HTML string
 function renderPopupContent(content) {
   if (typeof content === 'string') return content
+  if (typeof content === 'number') return String(content)
   if (!content) return ''
 
-  // If it's a React element, try to extract text
-  if (content.props?.children) {
-    const children = content.props.children
-    if (Array.isArray(children)) {
-      return children.map(c => {
-        if (typeof c === 'string') return c
-        if (c?.props?.children) return renderPopupContent(c)
-        return ''
-      }).join('')
+  // If it's a React element, convert to HTML
+  if (content.props) {
+    const { className, children } = content.props
+    const tag = content.type || 'div'
+    const tagName = typeof tag === 'string' ? tag : 'div'
+    const classAttr = className ? ` class="${className}"` : ''
+
+    // Recursively render children
+    let innerContent = ''
+    if (children) {
+      if (Array.isArray(children)) {
+        innerContent = children.map(c => renderPopupContent(c)).join('')
+      } else {
+        innerContent = renderPopupContent(children)
+      }
     }
-    return renderPopupContent(children)
+
+    return `<${tagName}${classAttr}>${innerContent}</${tagName}>`
   }
 
-  return String(content)
+  // Handle arrays
+  if (Array.isArray(content)) {
+    return content.map(c => renderPopupContent(c)).join('')
+  }
+
+  return ''
 }
