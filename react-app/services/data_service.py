@@ -1,6 +1,7 @@
 """Data service for loading geospatial data from Databricks."""
 import json
 import math
+import time
 from typing import Dict, Any, List, Optional
 from decimal import Decimal
 
@@ -55,6 +56,7 @@ class DataService:
         """Load existing store locations."""
         gold = self.settings.gold_table_prefix
         try:
+            start = time.time()
             print(f"Loading viz_existing_stores...")
             stores_df = self.db.execute_query(f"""
                 SELECT store_number, city, state, latitude, longitude,
@@ -64,7 +66,8 @@ class DataService:
                 FROM {gold}.viz_existing_stores
             """)
             result = stores_df.to_dict('records') if not stores_df.empty else []
-            print(f"Loaded {len(result)} existing stores")
+            elapsed = time.time() - start
+            print(f"Loaded {len(result)} existing stores in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_existing_stores: {str(e)}")
@@ -75,6 +78,7 @@ class DataService:
         gold = self.settings.gold_table_prefix
         silver = self.settings.silver_table_prefix
         try:
+            start = time.time()
             print(f"Loading isochrones_lce...")
             isochrones_df = self.db.execute_query(f"""
                 SELECT iso.location_id as store_number, ST_AsGeoJSON(iso.geometry) as isochrone_geojson
@@ -84,7 +88,8 @@ class DataService:
                 WHERE stores.state = 'MA'
             """)
             result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
-            print(f"Loaded {len(result)} LCE isochrones")
+            elapsed = time.time() - start
+            print(f"Loaded {len(result)} LCE isochrones in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading isochrones_lce: {str(e)}")
@@ -98,6 +103,7 @@ class DataService:
         """
         gold = self.settings.gold_table_prefix
         try:
+            start = time.time()
             print(f"Loading viz_partners...")
             # Single query fetches all needed columns for both isochrones and stores
             partner_df = self.db.execute_query(f"""
@@ -136,7 +142,8 @@ class DataService:
                 for r in records
             ]
 
-            print(f"Loaded {len(isochrones)} partner isochrones and {len(stores)} partner stores")
+            elapsed = time.time() - start
+            print(f"Loaded {len(isochrones)} partner isochrones and {len(stores)} partner stores in {elapsed:.2f}s")
             return sanitize_for_json({'isochrones': isochrones, 'stores': stores})
         except Exception as e:
             print(f"ERROR loading viz_partners: {str(e)}")
@@ -146,13 +153,15 @@ class DataService:
         """Load competitor store locations."""
         gold = self.settings.gold_table_prefix
         try:
+            start = time.time()
             print(f"Loading viz_competitors...")
             competitors_df = self.db.execute_query(f"""
                 SELECT name, latitude, longitude, poi_category, poi_subcategory
                 FROM {gold}.viz_competitors
             """)
             result = competitors_df.to_dict('records') if not competitors_df.empty else []
-            print(f"Loaded {len(result)} competitors")
+            elapsed = time.time() - start
+            print(f"Loaded {len(result)} competitors in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_competitors: {str(e)}")
@@ -232,6 +241,7 @@ class DataService:
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
         try:
+            start = time.time()
             filter_desc = f" with filters: {conditions}" if conditions else ""
             print(f"Loading viz_expansion_candidates{filter_desc}...")
             candidates_df = self.db.execute_query(f"""
@@ -257,7 +267,8 @@ class DataService:
                 {where_clause}
             """)
             result = candidates_df.to_dict('records') if not candidates_df.empty else []
-            print(f"Loaded {len(result)} expansion candidates")
+            elapsed = time.time() - start
+            print(f"Loaded {len(result)} expansion candidates in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
             print(f"ERROR loading viz_expansion_candidates: {str(e)}")

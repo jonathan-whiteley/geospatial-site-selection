@@ -5,7 +5,6 @@ import { useState, useCallback } from 'react'
  */
 const DEFAULT_LAYERS = {
   currentStores: true,
-  h3Hexagons: true,
   candidates: false,
   candidateIsochrones: false,
   partners: false,
@@ -20,7 +19,6 @@ const DEFAULT_LAYERS = {
 const MODE_LAYERS = {
   current: {
     currentStores: true,
-    h3Hexagons: true,
     candidates: false,
     candidateIsochrones: false,
     partners: false,
@@ -29,12 +27,11 @@ const MODE_LAYERS = {
   },
   expansion: {
     currentStores: true,
-    h3Hexagons: true,
     candidates: true,
     candidateIsochrones: false,
-    partners: true,
+    partners: false,
     competitors: false,
-    convenience: true,
+    convenience: false,
   },
 }
 

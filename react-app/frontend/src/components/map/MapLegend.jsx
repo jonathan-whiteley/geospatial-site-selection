@@ -56,10 +56,6 @@ export function MapLegend() {
       icon: MapPin,
     },
     {
-      label: 'Demand Heatmap',
-      gradient: true,
-    },
-    {
       label: 'Partner Stores',
       color: '#3b82f6',
       icon: Store,

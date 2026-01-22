@@ -219,7 +219,7 @@ function App() {
   const totalStores = networkData?.stores?.length || 0
 
   // Determine which accordion sections to open by default (filters/optimization collapsed)
-  const defaultAccordionValues = ['layers', 'metrics', 'recommendations']
+  const defaultAccordionValues = ['layers', 'metrics']
 
   // Show loading state
   if (dataLoading) {

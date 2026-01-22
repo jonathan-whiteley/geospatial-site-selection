@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from api.routes import health, stores, expansion, optimization, metrics
+from api.routes import health, stores, expansion, optimization, metrics, init
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -30,6 +30,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(health.router, prefix="/api")
+app.include_router(init.router, prefix="/api")  # Consolidated initial load endpoint
 app.include_router(stores.router, prefix="/api")
 app.include_router(expansion.router, prefix="/api")
 app.include_router(optimization.router, prefix="/api")

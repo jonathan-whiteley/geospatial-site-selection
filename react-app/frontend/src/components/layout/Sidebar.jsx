@@ -320,19 +320,6 @@ export function MapLayersSection({ layers, onToggle }) {
               checked={layers.candidates}
               onChange={() => onToggle('candidates')}
             />
-          </div>
-
-          {/* Analysis Layers */}
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-              Analysis
-            </p>
-            <LayerToggle
-              icon={<Hexagon className="w-4 h-4 text-amber-500" />}
-              label="Demand Heatmap (H3)"
-              checked={layers.h3Hexagons}
-              onChange={() => onToggle('h3Hexagons')}
-            />
             <LayerToggle
               icon={<Circle className="w-4 h-4 text-red-400" />}
               label="Candidate Trade Areas"

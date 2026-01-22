@@ -18,6 +18,19 @@ export async function checkHealth() {
 }
 
 // ============================================
+// Consolidated Initial Load (Phase 1 Performance)
+// ============================================
+
+/**
+ * Load all initial app data in a single request.
+ * Replaces 3 parallel API calls with 1, eliminating duplicate queries.
+ */
+export async function getInitialData() {
+  const response = await api.get('/init')
+  return response.data
+}
+
+// ============================================
 // Stores
 // ============================================
 

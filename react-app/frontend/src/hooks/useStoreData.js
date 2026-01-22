@@ -1,8 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
-import { getFullNetwork, getExpansionData, getOptimizationResults } from '../services/api'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { getInitialData, getFullNetwork, getExpansionData } from '../services/api'
 
 /**
  * Hook for loading and managing store data
+ *
+ * Phase 1 Performance Optimization:
+ * - Uses single /api/init endpoint instead of 3 parallel calls
+ * - Receives pre-computed sales/population ranges from backend
+ * - Optimization results loaded on-demand (not on initial load)
  */
 export function useStoreData() {
   const [networkData, setNetworkData] = useState({
@@ -26,73 +31,67 @@ export function useStoreData() {
     convenienceStores: [],
   })
 
-  const [optimizationCache, setOptimizationCache] = useState([])
+  // Pre-computed ranges from backend (avoids O(n) frontend calculations)
+  const [backendRanges, setBackendRanges] = useState({
+    sales: { min: 0, max: 1000000 },
+    population: { min: 0, max: 100000 },
+  })
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Load all data on mount
+  // Load all data on mount using consolidated endpoint
   useEffect(() => {
     async function loadData() {
       setLoading(true)
       setError(null)
 
       try {
-        console.log('=== LOADING DATA ===')
+        console.time('initialDataLoad')
+        console.log('=== LOADING DATA (CONSOLIDATED) ===')
 
-        // Load network and expansion data in parallel
-        const [networkResponse, expansionResponse, optimizationResponse] = await Promise.all([
-          getFullNetwork().catch(e => {
-            console.error('Failed to load network data:', e)
-            return null
-          }),
-          getExpansionData().catch(e => {
-            console.error('Failed to load expansion data:', e)
-            return null
-          }),
-          getOptimizationResults().catch(e => {
-            console.error('Failed to load optimization cache:', e)
-            return []
-          }),
-        ])
+        // Single API call replaces 3 parallel calls
+        const response = await getInitialData()
 
-        if (networkResponse) {
-          // Support both partner_* (new) and convenience_* (deprecated) response keys
-          const partnerIsochrones = networkResponse.partner_isochrones || networkResponse.convenience_isochrones || []
-          const partnerStores = networkResponse.partner_stores || networkResponse.convenience_stores || []
-          setNetworkData({
-            stores: networkResponse.stores || [],
-            isochrones: networkResponse.isochrones || [],
-            partnerIsochrones,
-            partnerStores,
-            competitors: networkResponse.competitors || [],
-            maBoundary: networkResponse.ma_boundary || null,
-            // Backward compatibility aliases
-            convenienceIsochrones: partnerIsochrones,
-            convenienceStores: partnerStores,
-          })
-          console.log(`Loaded network data: ${networkResponse.stores?.length || 0} stores`)
+        // Process network data
+        const network = response.network || {}
+        const partnerIsochrones = network.partner_isochrones || network.convenience_isochrones || []
+        const partnerStores = network.partner_stores || network.convenience_stores || []
+
+        setNetworkData({
+          stores: network.stores || [],
+          isochrones: network.isochrones || [],
+          partnerIsochrones,
+          partnerStores,
+          competitors: network.competitors || [],
+          maBoundary: network.ma_boundary || null,
+          // Backward compatibility aliases
+          convenienceIsochrones: partnerIsochrones,
+          convenienceStores: partnerStores,
+        })
+
+        // Process expansion data
+        const expansion = response.expansion || {}
+        const expansionPartnerStores = expansion.partner_stores || expansion.convenience_stores || []
+
+        setExpansionData({
+          candidates: expansion.candidates || [],
+          currentStores: expansion.current_stores || [],
+          partnerStores: expansionPartnerStores,
+          competitors: expansion.competitors || [],
+          // Backward compatibility alias
+          convenienceStores: expansionPartnerStores,
+        })
+
+        // Use pre-computed ranges from backend
+        if (response.ranges) {
+          setBackendRanges(response.ranges)
         }
 
-        if (expansionResponse) {
-          // Support both partner_stores (new) and convenience_stores (deprecated)
-          const partnerStores = expansionResponse.partner_stores || expansionResponse.convenience_stores || []
-          setExpansionData({
-            candidates: expansionResponse.candidates || [],
-            currentStores: expansionResponse.current_stores || [],
-            partnerStores,
-            competitors: expansionResponse.competitors || [],
-            // Backward compatibility alias
-            convenienceStores: partnerStores,
-          })
-          console.log(`Loaded expansion data: ${expansionResponse.candidates?.length || 0} candidates`)
-        }
-
-        if (optimizationResponse) {
-          setOptimizationCache(optimizationResponse)
-          console.log(`Loaded optimization cache: ${optimizationResponse.length} combinations`)
-        }
-
+        console.log(`Loaded: ${network.stores?.length || 0} stores, ${expansion.candidates?.length || 0} candidates`)
+        console.timeEnd('initialDataLoad')
         console.log('=== DATA LOAD COMPLETE ===')
+
       } catch (err) {
         console.error('Error loading data:', err)
         setError(err.message || 'Failed to load data')
@@ -104,39 +103,43 @@ export function useStoreData() {
     loadData()
   }, [])
 
-  // Refresh data
+  // Refresh data using consolidated endpoint
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const [networkResponse, expansionResponse] = await Promise.all([
-        getFullNetwork(),
-        getExpansionData(),
-      ])
+      const response = await getInitialData()
 
-      if (networkResponse) {
-        const partnerIsochrones = networkResponse.partner_isochrones || networkResponse.convenience_isochrones || []
-        const partnerStores = networkResponse.partner_stores || networkResponse.convenience_stores || []
-        setNetworkData({
-          stores: networkResponse.stores || [],
-          isochrones: networkResponse.isochrones || [],
-          partnerIsochrones,
-          partnerStores,
-          competitors: networkResponse.competitors || [],
-          maBoundary: networkResponse.ma_boundary || null,
-          convenienceIsochrones: partnerIsochrones,
-          convenienceStores: partnerStores,
-        })
-      }
+      // Process network data
+      const network = response.network || {}
+      const partnerIsochrones = network.partner_isochrones || network.convenience_isochrones || []
+      const partnerStores = network.partner_stores || network.convenience_stores || []
 
-      if (expansionResponse) {
-        const partnerStores = expansionResponse.partner_stores || expansionResponse.convenience_stores || []
-        setExpansionData({
-          candidates: expansionResponse.candidates || [],
-          currentStores: expansionResponse.current_stores || [],
-          partnerStores,
-          competitors: expansionResponse.competitors || [],
-          convenienceStores: partnerStores,
-        })
+      setNetworkData({
+        stores: network.stores || [],
+        isochrones: network.isochrones || [],
+        partnerIsochrones,
+        partnerStores,
+        competitors: network.competitors || [],
+        maBoundary: network.ma_boundary || null,
+        convenienceIsochrones: partnerIsochrones,
+        convenienceStores: partnerStores,
+      })
+
+      // Process expansion data
+      const expansion = response.expansion || {}
+      const expansionPartnerStores = expansion.partner_stores || expansion.convenience_stores || []
+
+      setExpansionData({
+        candidates: expansion.candidates || [],
+        currentStores: expansion.current_stores || [],
+        partnerStores: expansionPartnerStores,
+        competitors: expansion.competitors || [],
+        convenienceStores: expansionPartnerStores,
+      })
+
+      // Update ranges
+      if (response.ranges) {
+        setBackendRanges(response.ranges)
       }
     } catch (err) {
       setError(err.message || 'Failed to refresh data')
@@ -145,30 +148,13 @@ export function useStoreData() {
     }
   }, [])
 
-  // Calculate sales range from candidates
-  const salesRange = {
-    min: expansionData.candidates.length > 0
-      ? Math.min(...expansionData.candidates.map(c => c.predicted_annual_sales || 0))
-      : 0,
-    max: expansionData.candidates.length > 0
-      ? Math.max(...expansionData.candidates.map(c => c.predicted_annual_sales || 0))
-      : 1000000,
-  }
-
-  // Calculate population range from candidates
-  const populationRange = {
-    min: expansionData.candidates.length > 0
-      ? Math.min(...expansionData.candidates.map(c => c.population || 0))
-      : 0,
-    max: expansionData.candidates.length > 0
-      ? Math.max(...expansionData.candidates.map(c => c.population || 0))
-      : 100000,
-  }
+  // Use pre-computed ranges from backend (memoized for stability)
+  const salesRange = useMemo(() => backendRanges.sales, [backendRanges.sales])
+  const populationRange = useMemo(() => backendRanges.population, [backendRanges.population])
 
   return {
     networkData,
     expansionData,
-    optimizationCache,
     salesRange,
     populationRange,
     loading,

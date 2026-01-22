@@ -105,57 +105,6 @@ function PartnerIsochroneLayer({ isochrones, visible }) {
   )
 }
 
-/**
- * H3 Hexagon layer with sales-based gradient
- */
-function H3HexagonLayer({ candidates, salesRange, visible, onStoreClick }) {
-  if (!visible || !candidates || candidates.length === 0) return null
-
-  return (
-    <>
-      {candidates.map((candidate, idx) => {
-        if (!candidate.geometry_geojson) return null
-        try {
-          const geojson = typeof candidate.geometry_geojson === 'string'
-            ? JSON.parse(candidate.geometry_geojson)
-            : candidate.geometry_geojson
-          const fillColor = getSalesColor(
-            candidate.predicted_annual_sales || 0,
-            salesRange.min,
-            salesRange.max
-          )
-          return (
-            <GeoJSON
-              key={`hex-${idx}`}
-              data={geojson}
-              pane="isochrones"
-              style={{
-                color: '#dc2626',
-                weight: 1.5,
-                fillColor,
-                fillOpacity: 0.7,
-              }}
-              eventHandlers={{
-                click: () => onStoreClick?.(candidate),
-              }}
-            >
-              <Popup>
-                <div>
-                  <strong>H3 Cell: {candidate.store_number}</strong><br />
-                  <strong>Predicted Sales:</strong> ${(candidate.predicted_annual_sales || 0).toLocaleString()}<br />
-                  <strong>Population:</strong> {Math.round(candidate.population || 0).toLocaleString()}
-                </div>
-              </Popup>
-            </GeoJSON>
-          )
-        } catch (e) {
-          console.error('Error rendering H3 hexagon:', e)
-          return null
-        }
-      })}
-    </>
-  )
-}
 
 /**
  * Current stores markers (green) - with polished popup
@@ -217,28 +166,36 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
 }
 
 /**
- * Candidate isochrones (2km radius circles)
+ * Candidate isochrones (2km radius circles) with sales-based gradient
+ * Darker red = higher predicted sales
  */
-function CandidateIsochroneLayer({ candidates, visible }) {
+function CandidateIsochroneLayer({ candidates, salesRange, visible }) {
   if (!visible || !candidates || candidates.length === 0) return null
 
   return (
     <>
-      {candidates.map((candidate, idx) => (
-        <Circle
-          key={`cand-iso-${idx}`}
-          center={[candidate.latitude, candidate.longitude]}
-          pane="isochrones"
-          radius={2000}
-          interactive={false}
-          pathOptions={{
-            color: '#fca5a5',
-            fillColor: '#ef4444',
-            fillOpacity: 0.15,
-            weight: 1.5,
-          }}
-        />
-      ))}
+      {candidates.map((candidate, idx) => {
+        const fillColor = getSalesColor(
+          candidate.predicted_annual_sales || 0,
+          salesRange.min,
+          salesRange.max
+        )
+        return (
+          <Circle
+            key={`cand-iso-${idx}`}
+            center={[candidate.latitude, candidate.longitude]}
+            pane="isochrones"
+            radius={2000}
+            interactive={false}
+            pathOptions={{
+              color: fillColor,
+              fillColor: fillColor,
+              fillOpacity: 0.35,
+              weight: 1.5,
+            }}
+          />
+        )
+      })}
     </>
   )
 }
@@ -401,8 +358,8 @@ export function GeospatialMap({
     return networkData?.competitors || []
   }, [networkData])
 
-  // Show sales legend when candidates or H3 hexagons are visible
-  const showSalesLegend = layers.candidates || layers.h3Hexagons
+  // Show sales legend when candidates or candidate isochrones are visible
+  const showSalesLegend = layers.candidates || layers.candidateIsochrones
 
   return (
     <div className="relative w-full h-full">
@@ -431,18 +388,11 @@ export function GeospatialMap({
           visible={layers.partners}
         />
 
-        {/* Candidate isochrones */}
+        {/* Candidate isochrones with sales gradient */}
         <CandidateIsochroneLayer
           candidates={candidates}
-          visible={layers.candidateIsochrones}
-        />
-
-        {/* H3 Hexagons */}
-        <H3HexagonLayer
-          candidates={candidates}
           salesRange={salesRange}
-          visible={layers.h3Hexagons}
-          onStoreClick={onStoreClick}
+          visible={layers.candidateIsochrones}
         />
 
         {/* Current stores */}
