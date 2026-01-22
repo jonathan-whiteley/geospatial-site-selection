@@ -191,11 +191,11 @@ function CandidateIsochroneLayer({ candidates, salesRange, visible }) {
 /**
  * Candidate markers (red, with clustering) - polished popup
  */
-function CandidateMarkers({ candidates, visible, onStoreClick }) {
+function CandidateMarkers({ candidates, visible, onStoreClick, salesRange }) {
   if (!visible || !candidates || candidates.length === 0) return null
 
   return (
-    <MarkerClusterGroup>
+    <MarkerClusterGroup salesRange={salesRange}>
       {candidates.map((candidate, idx) => (
         <CircleMarker
           key={`cand-${idx}`}
@@ -381,6 +381,7 @@ export function GeospatialMap({
           candidates={candidates}
           visible={layers.candidates}
           onStoreClick={onStoreClick}
+          salesRange={salesRange}
         />
 
         {/* Partner stores */}

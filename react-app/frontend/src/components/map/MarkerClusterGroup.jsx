@@ -2,15 +2,21 @@ import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet.markercluster'
-import { formatSales } from '../../lib/utils'
+import { formatSales, getSalesColor } from '../../lib/utils'
 
 /**
  * Custom MarkerClusterGroup component for react-leaflet
- * Shows total sales in cluster icons instead of count
+ * Shows total sales in cluster icons with gradient color based on sales
  */
-export default function MarkerClusterGroup({ children }) {
+export default function MarkerClusterGroup({ children, salesRange }) {
   const map = useMap()
   const clusterRef = useRef(null)
+  const salesRangeRef = useRef(salesRange)
+
+  // Keep salesRange ref updated
+  useEffect(() => {
+    salesRangeRef.current = salesRange
+  }, [salesRange])
 
   useEffect(() => {
     // Create marker cluster group with custom icon function
@@ -26,18 +32,22 @@ export default function MarkerClusterGroup({ children }) {
 
         const formattedSales = formatSales(totalSales)
         const count = clusterObj.getChildCount()
-        let sizeClass = 'small'
         let size = 40
         if (count >= 50) {
-          sizeClass = 'large'
           size = 60
         } else if (count >= 10) {
-          sizeClass = 'medium'
           size = 50
         }
 
+        // Calculate gradient color based on total sales
+        // Use a scaled range for clusters (they aggregate multiple candidates)
+        const range = salesRangeRef.current || { min: 0, max: 1000000 }
+        const clusterMin = range.min * 2  // Clusters have at least 2 markers
+        const clusterMax = range.max * Math.max(count, 10)  // Scale max by count
+        const bgColor = getSalesColor(totalSales, clusterMin, clusterMax)
+
         return L.divIcon({
-          html: `<div class="cluster-sales">${formattedSales}</div>`,
+          html: `<div class="cluster-sales" style="background: ${bgColor}; box-shadow: 0 3px 8px ${bgColor}66, 0 0 0 2px rgba(255,255,255,0.3);">${formattedSales}</div>`,
           className: 'sales-cluster-icon',
           iconSize: L.point(size, size),
         })

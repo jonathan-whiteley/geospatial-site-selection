@@ -30,13 +30,13 @@ function PartnerStrategyCard({ storeData }) {
           <span className="font-semibold text-blue-900">Partner Strategy</span>
         </div>
         <p className="text-sm text-gray-600 mb-3">
-          Partner with <strong>{storeData.convenience_store_name || '7-Eleven'}</strong> in{' '}
-          {storeData.convenience_city || 'nearby location'}
+          Partner with <strong>{storeData.partner_store_name || 'Partner'}</strong> in{' '}
+          {storeData.partner_city || 'nearby location'}
         </p>
         <div className="bg-white/60 rounded-lg p-3 space-y-2 text-xs">
           <div className="flex justify-between">
             <span className="text-gray-500">Drive Time</span>
-            <span className="font-semibold text-gray-700">{storeData.convenience_drive_time || 5} min</span>
+            <span className="font-semibold text-gray-700">{storeData.partner_drive_time || 5} min</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Strategy</span>
