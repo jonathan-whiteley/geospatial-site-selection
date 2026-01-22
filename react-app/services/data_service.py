@@ -75,26 +75,25 @@ class DataService:
             return []
 
     def load_isochrones(self) -> List[Dict[str, Any]]:
-        """Load LCE store trade area isochrones from silver table (MA only)."""
-        silver = self.settings.silver_table_prefix
+        """Load LCE store trade area isochrones (MA only)."""
         gold = self.settings.gold_table_prefix
+        silver = self.settings.silver_table_prefix
         try:
             start = time.time()
-            print(f"Loading LCE isochrones from silver table (MA only)...")
-            # Use silver table isochrones_lce with ST_AsGeoJSON conversion, filtered to MA
+            print(f"Loading isochrones_lce...")
             isochrones_df = self.db.execute_query(f"""
-                SELECT i.store_number, ST_AsGeoJSON(i.isochrone_geometry) as isochrone_geojson
-                FROM {silver}.isochrones_lce i
-                JOIN {gold}.viz_existing_stores s ON i.store_number = s.store_number
-                WHERE i.isochrone_geometry IS NOT NULL
-                  AND (UPPER(s.state) IN ('MA', 'MASSACHUSETTS') OR s.state IS NULL)
+                SELECT iso.location_id as store_number, ST_AsGeoJSON(iso.geometry) as isochrone_geojson
+                FROM {silver}.isochrones_lce iso
+                INNER JOIN {gold}.viz_existing_stores stores
+                    ON iso.location_id = stores.store_number
+                WHERE stores.state = 'MA'
             """)
             result = isochrones_df.to_dict('records') if not isochrones_df.empty else []
             elapsed = time.time() - start
             print(f"Loaded {len(result)} LCE isochrones in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
-            print(f"ERROR loading LCE isochrones: {str(e)}")
+            print(f"ERROR loading isochrones_lce: {str(e)}")
             return []
 
     def load_partner_data(self) -> Dict[str, Any]:
