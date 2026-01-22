@@ -340,9 +340,9 @@ class DataService:
         """
         # Available parameter grid (must match pipeline)
         param_grid = {
-            'max_stores': [10, 50, 100],
-            'min_dist_new': [1.0, 2.0, 3.0],
-            'min_dist_existing': [1.0, 2.0, 3.0]
+            'max_stores': [10, 50],
+            'min_dist_new': [2.0, 3.0],
+            'min_dist_existing': [2.0, 3.0]
         }
 
         def snap_to_grid(value: float, grid: List[float]) -> float:
