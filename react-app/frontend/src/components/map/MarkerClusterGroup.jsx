@@ -56,6 +56,8 @@ export default function MarkerClusterGroup({ children, salesRange }) {
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
       maxClusterRadius: 50,
+      disableClusteringAtZoom: 15,  // Disable clustering at high zoom for easier single-click
+      singleMarkerMode: false,  // Don't show cluster icon for single markers
     })
 
     clusterRef.current = cluster

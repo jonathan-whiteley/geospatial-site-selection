@@ -14,6 +14,15 @@ const DEFAULT_LAYERS = {
 }
 
 /**
+ * Default partner brand filter state (all brands enabled by default)
+ */
+const DEFAULT_PARTNER_BRAND_FILTERS = {
+  'Walmart': true,
+  '7-Eleven/Speedway': true,
+  "Shaw's": true,
+}
+
+/**
  * Default layer visibility for each mode
  */
 const MODE_LAYERS = {
@@ -75,6 +84,7 @@ export function useMapState() {
   const [selectedStore, setSelectedStore] = useState(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [mapBounds, setMapBounds] = useState(null)
+  const [partnerBrandFilters, setPartnerBrandFilters] = useState(DEFAULT_PARTNER_BRAND_FILTERS)
 
   // Set mode and update layers accordingly
   const setMode = useCallback((newMode) => {
@@ -143,6 +153,14 @@ export function useMapState() {
     setMapBounds(bounds)
   }, [])
 
+  // Toggle a specific partner brand filter
+  const togglePartnerBrand = useCallback((brand) => {
+    setPartnerBrandFilters(prev => ({
+      ...prev,
+      [brand]: !prev[brand]
+    }))
+  }, [])
+
   return {
     // State
     mode,
@@ -153,6 +171,7 @@ export function useMapState() {
     selectedStore,
     detailPanelOpen,
     mapBounds,
+    partnerBrandFilters,
 
     // Actions
     setMode,
@@ -165,5 +184,6 @@ export function useMapState() {
     closeDetailPanel,
     clearOptimization,
     updateMapBounds,
+    togglePartnerBrand,
   }
 }

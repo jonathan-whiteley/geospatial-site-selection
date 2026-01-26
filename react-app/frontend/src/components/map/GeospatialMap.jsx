@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, useMap, Pane, GeoJSON, CircleMarker, Circle, Popup } from 'react-leaflet'
+import L from 'leaflet'
 import MarkerClusterGroup from './MarkerClusterGroup'
 import { MapBoundsTracker } from './MapBoundsTracker'
 import { MapLegend, SalesGradientLegend } from './MapLegend'
@@ -69,14 +70,22 @@ function IsochroneLayer({ isochrones }) {
 }
 
 /**
- * Partner store isochrones (blue)
+ * Partner store isochrones (blue) - filtered by partner brand
  */
-function PartnerIsochroneLayer({ isochrones, visible }) {
+function PartnerIsochroneLayer({ isochrones, visible, partnerBrandFilters }) {
   if (!visible || !isochrones || isochrones.length === 0) return null
+
+  // Filter isochrones by selected partner brands
+  const filteredIsochrones = partnerBrandFilters
+    ? isochrones.filter(iso => {
+        const brand = iso.partner_brand || 'Other'
+        return partnerBrandFilters[brand] !== false
+      })
+    : isochrones
 
   return (
     <>
-      {isochrones.map((iso, idx) => {
+      {filteredIsochrones.map((iso, idx) => {
         if (!iso.isochrone_geojson) return null
         try {
           const geojson = typeof iso.isochrone_geojson === 'string'
@@ -190,6 +199,7 @@ function CandidateIsochroneLayer({ candidates, salesRange, visible }) {
 
 /**
  * Candidate markers (red, with clustering) - polished popup
+ * Fixed: Single click now works properly by stopping event propagation
  */
 function CandidateMarkers({ candidates, visible, onStoreClick, salesRange }) {
   if (!visible || !candidates || candidates.length === 0) return null
@@ -211,7 +221,11 @@ function CandidateMarkers({ candidates, visible, onStoreClick, salesRange }) {
             predicted_annual_sales: candidate.predicted_annual_sales || 0,
           }}
           eventHandlers={{
-            click: () => onStoreClick?.(candidate),
+            click: (e) => {
+              // Stop propagation to prevent cluster from intercepting
+              L.DomEvent.stopPropagation(e.originalEvent)
+              onStoreClick?.(candidate)
+            },
           }}
         >
           <Popup className="modern-popup">
@@ -236,14 +250,22 @@ function CandidateMarkers({ candidates, visible, onStoreClick, salesRange }) {
 }
 
 /**
- * Partner store markers (blue)
+ * Partner store markers (blue) - filtered by partner brand
  */
-function PartnerStoreMarkers({ stores, visible }) {
+function PartnerStoreMarkers({ stores, visible, partnerBrandFilters }) {
   if (!visible || !stores || stores.length === 0) return null
+
+  // Filter stores by selected partner brands
+  const filteredStores = partnerBrandFilters
+    ? stores.filter(store => {
+        const brand = store.partner_brand || 'Other'
+        return partnerBrandFilters[brand] !== false
+      })
+    : stores
 
   return (
     <>
-      {stores.map((store, idx) => (
+      {filteredStores.map((store, idx) => (
         <CircleMarker
           key={`partner-${idx}`}
           center={[store.latitude, store.longitude]}
@@ -259,7 +281,9 @@ function PartnerStoreMarkers({ stores, visible }) {
           <Popup className="modern-popup">
             <div className="min-w-[150px]">
               <div className="font-semibold text-gray-900">{store.name}</div>
-              <div className="text-xs text-blue-600 mt-1">Partner Store</div>
+              <div className="text-xs text-blue-600 mt-1">
+                {store.partner_brand || 'Partner Store'}
+              </div>
             </div>
           </Popup>
         </CircleMarker>
@@ -311,6 +335,7 @@ export function GeospatialMap({
   salesRange,
   onStoreClick,
   onBoundsChange,
+  partnerBrandFilters,
 }) {
   // Get current stores (from candidates' current_stores or network stores)
   const currentStores = useMemo(() => {
@@ -360,6 +385,7 @@ export function GeospatialMap({
         <PartnerIsochroneLayer
           isochrones={partnerIsochrones}
           visible={layers.partners}
+          partnerBrandFilters={partnerBrandFilters}
         />
 
         {/* Candidate isochrones with sales gradient */}
@@ -388,6 +414,7 @@ export function GeospatialMap({
         <PartnerStoreMarkers
           stores={partnerStores}
           visible={layers.partners}
+          partnerBrandFilters={partnerBrandFilters}
         />
 
         {/* Competitors */}

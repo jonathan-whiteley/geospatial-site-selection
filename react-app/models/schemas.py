@@ -42,6 +42,7 @@ class PartnerStore(BaseModel):
     longitude: float
     poi_category: Optional[str] = None
     poi_subcategory: Optional[str] = None
+    partner_brand: Optional[str] = None  # Normalized brand: "Walmart", "7-Eleven/Speedway", "Shaw's"
 
 
 # Backward compatibility aliases (deprecated)

@@ -112,7 +112,8 @@ class DataService:
                        geometry_geojson as isochrone_geojson,
                        candidate_count_in_isochrone,
                        total_candidate_sales_in_isochrone,
-                       name, latitude, longitude, store_type as poi_category, poi_subcategory
+                       name, latitude, longitude, store_type as poi_category, poi_subcategory,
+                       partner_brand
                 FROM {gold}.viz_partners
             """)
 
@@ -128,7 +129,8 @@ class DataService:
                     'location_id': r['location_id'],
                     'isochrone_geojson': r['isochrone_geojson'],
                     'candidate_count_in_isochrone': r['candidate_count_in_isochrone'],
-                    'total_candidate_sales_in_isochrone': r['total_candidate_sales_in_isochrone']
+                    'total_candidate_sales_in_isochrone': r['total_candidate_sales_in_isochrone'],
+                    'partner_brand': r.get('partner_brand')
                 }
                 for r in records
             ]
@@ -138,7 +140,8 @@ class DataService:
                     'latitude': r['latitude'],
                     'longitude': r['longitude'],
                     'poi_category': r['poi_category'],
-                    'poi_subcategory': r['poi_subcategory']
+                    'poi_subcategory': r['poi_subcategory'],
+                    'partner_brand': r.get('partner_brand')
                 }
                 for r in records
             ]

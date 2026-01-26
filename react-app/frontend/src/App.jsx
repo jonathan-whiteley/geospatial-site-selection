@@ -92,6 +92,7 @@ function App() {
     selectedStore,
     detailPanelOpen,
     mapBounds,
+    partnerBrandFilters,
     toggleLayer,
     updateFilters,
     updateOptimizationParams,
@@ -100,6 +101,7 @@ function App() {
     closeDetailPanel,
     clearOptimization,
     updateMapBounds,
+    togglePartnerBrand,
   } = useMapState()
 
   // Optimization hook
@@ -284,6 +286,8 @@ function App() {
                 <MapLayersSection
                   layers={layers}
                   onToggle={toggleLayer}
+                  partnerBrandFilters={partnerBrandFilters}
+                  onTogglePartnerBrand={togglePartnerBrand}
                 />
 
                 {/* Expansion Metrics */}
@@ -336,6 +340,7 @@ function App() {
         salesRange={salesRange}
         onStoreClick={selectStore}
         onBoundsChange={updateMapBounds}
+        partnerBrandFilters={partnerBrandFilters}
       />
 
       <DetailPanel

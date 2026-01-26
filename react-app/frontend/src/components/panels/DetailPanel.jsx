@@ -96,7 +96,10 @@ export function DetailPanel({ store, isOpen, onClose, mode }) {
 
   const isExpansionCandidate = store.predicted_annual_sales !== undefined
   const showFulfillmentRecommendation = isExpansionCandidate && mode === 'expansion'
-  const isPartner = store.fulfillment_strategy === 'partner' || store.within_convenience_isochrone
+  // Use partner fields (with fallback to deprecated convenience fields for backward compatibility)
+  const isPartner = store.fulfillment_strategy === 'partner' ||
+                    store.within_partner_isochrone ||
+                    store.within_convenience_isochrone
 
   return (
     <div

@@ -6,6 +6,9 @@ permissions:
   - level: CAN_MANAGE
     group_name: lce-ai-strategy-guest
 
+run_as:
+  user_name: ryan.marson@lcecorp.com
+
 # ============================================================================
 # DEPLOYMENT CONFIGURATION FOR NEW WORKSPACE
 # ============================================================================

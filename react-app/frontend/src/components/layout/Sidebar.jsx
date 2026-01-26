@@ -292,7 +292,9 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
 /**
  * Map Layers Section
  */
-export function MapLayersSection({ layers, onToggle }) {
+export function MapLayersSection({ layers, onToggle, partnerBrandFilters, onTogglePartnerBrand }) {
+  const partnerBrands = ['Walmart', '7-Eleven/Speedway', "Shaw's"]
+
   return (
     <AccordionItem value="layers">
       <AccordionTrigger>
@@ -339,6 +341,27 @@ export function MapLayersSection({ layers, onToggle }) {
               checked={layers.partners}
               onChange={() => onToggle('partners')}
             />
+
+            {/* Nested partner brand filters - only show when partners toggle is on */}
+            {layers.partners && partnerBrandFilters && onTogglePartnerBrand && (
+              <div className="ml-6 pl-3 border-l-2 border-blue-200 space-y-1.5 mt-2 mb-2">
+                {partnerBrands.map(brand => (
+                  <label
+                    key={brand}
+                    className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-1.5 rounded transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={partnerBrandFilters[brand] ?? true}
+                      onChange={() => onTogglePartnerBrand(brand)}
+                      className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-gray-600 text-xs">{brand}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
             <LayerToggle
               icon={<Building className="w-4 h-4 text-purple-500" />}
               label="Competitors"
