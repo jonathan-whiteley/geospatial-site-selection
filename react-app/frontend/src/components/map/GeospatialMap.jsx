@@ -157,7 +157,7 @@ function CurrentStoreMarkers({ stores, visible, onStoreClick }) {
             click: () => onStoreClick?.(store),
           }}
         >
-          <Popup className="modern-popup">
+          <Popup className="modern-popup" autoPan={false}>
             <div className="popup-header">
               <div className="popup-dot green"></div>
               <div>
@@ -246,7 +246,7 @@ function CandidateMarkers({ candidates, visible, onStoreClick, salesRange }) {
             },
           }}
         >
-          <Popup className="modern-popup">
+          <Popup className="modern-popup" autoPan={false}>
             <div className="popup-header">
               <div className="popup-dot red"></div>
               <div>
@@ -296,7 +296,7 @@ function PartnerStoreMarkers({ stores, visible, partnerBrandFilters }) {
             fillOpacity: 0.9,
           }}
         >
-          <Popup className="modern-popup">
+          <Popup className="modern-popup" autoPan={false}>
             <div className="min-w-[150px]">
               <div className="font-semibold text-gray-900">{store.name}</div>
               <div className="text-xs text-blue-600 mt-1">
@@ -331,7 +331,7 @@ function CompetitorMarkers({ competitors, visible }) {
             fillOpacity: 0.85,
           }}
         >
-          <Popup className="modern-popup">
+          <Popup className="modern-popup" autoPan={false}>
             <div className="min-w-[150px]">
               <div className="font-semibold text-gray-900">{comp.name}</div>
               <div className="text-xs text-purple-600 mt-1">Competitor</div>

@@ -21,13 +21,16 @@ export function formatSales(sales) {
 }
 
 /**
- * Get sales-based color gradient (white to red)
+ * Get sales-based color gradient (light pink to dark red)
+ * Min sales = light pink (#FFB3B3), Max sales = dark red (#CC0000)
  */
 export function getSalesColor(sales, minSales, maxSales) {
   const ratio = Math.max(0, Math.min(1, (sales - minSales) / (maxSales - minSales || 1)))
-  const r = 255
-  const g = Math.round(255 * (1 - ratio))
-  const b = Math.round(255 * (1 - ratio))
+  // Start at light pink (255, 179, 179) instead of white for better visibility
+  // End at dark red (204, 0, 0) instead of pure red for richer color
+  const r = Math.round(255 - (51 * ratio))   // 255 -> 204
+  const g = Math.round(179 * (1 - ratio))    // 179 -> 0
+  const b = Math.round(179 * (1 - ratio))    // 179 -> 0
   return `rgb(${r}, ${g}, ${b})`
 }
 
