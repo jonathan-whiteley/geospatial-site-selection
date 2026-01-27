@@ -71,29 +71,47 @@ function IsochroneLayer({ isochrones }) {
 
 /**
  * Partner store isochrones (blue) - filtered by partner brand
+ * Note: react-leaflet's GeoJSON doesn't update on prop changes, so we use
+ * a key that changes with filters to force complete re-render
  */
 function PartnerIsochroneLayer({ isochrones, visible, partnerBrandFilters }) {
   if (!visible || !isochrones || isochrones.length === 0) return null
 
   // Filter isochrones by selected partner brands
-  const filteredIsochrones = partnerBrandFilters
-    ? isochrones.filter(iso => {
-        const brand = iso.partner_brand || 'Other'
-        return partnerBrandFilters[brand] !== false
-      })
-    : isochrones
+  const filteredIsochrones = useMemo(() => {
+    if (!partnerBrandFilters) return isochrones
+    return isochrones.filter(iso => {
+      const brand = iso.partner_brand || 'Other'
+      return partnerBrandFilters[brand] !== false
+    })
+  }, [isochrones, partnerBrandFilters])
+
+  // Create a filter key that changes when filter state changes
+  // This forces React to unmount/remount GeoJSON components
+  const filterKey = useMemo(() => {
+    if (!partnerBrandFilters) return 'all'
+    return Object.entries(partnerBrandFilters)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+      .sort()
+      .join('-') || 'none'
+  }, [partnerBrandFilters])
 
   return (
-    <>
-      {filteredIsochrones.map((iso, idx) => {
+    <React.Fragment key={`partner-isochrones-${filterKey}`}>
+      {filteredIsochrones.map((iso) => {
         if (!iso.isochrone_geojson) return null
         try {
           const geojson = typeof iso.isochrone_geojson === 'string'
             ? JSON.parse(iso.isochrone_geojson)
             : iso.isochrone_geojson
+
+          // Use location_id as stable key
+          const stableKey = iso.location_id || `iso-${iso.latitude}-${iso.longitude}`
+
           return (
             <GeoJSON
-              key={`partner-iso-${idx}`}
+              key={stableKey}
               data={geojson}
               pane="isochrones"
               interactive={false}
@@ -110,7 +128,7 @@ function PartnerIsochroneLayer({ isochrones, visible, partnerBrandFilters }) {
           return null
         }
       })}
-    </>
+    </React.Fragment>
   )
 }
 
