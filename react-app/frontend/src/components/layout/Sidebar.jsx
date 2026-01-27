@@ -163,11 +163,26 @@ export function ExpansionMetricsSection({ candidates, viewportCandidates, visibl
 
 /**
  * Partnership Recommendations Section - Calculates recommendations dynamically
+ * Respects partner brand filters to show recommendations for selected brands only
  */
-export function PartnershipRecommendationsSection({ partnerStores = [], candidates = [] }) {
-  // Group partners by brand name
-  const partnersByBrand = partnerStores.reduce((acc, store) => {
-    const brand = store.name || 'Unknown'
+export function PartnershipRecommendationsSection({ partnerStores = [], candidates = [], partnerBrandFilters }) {
+  // Get list of enabled brands (checked on)
+  const enabledBrands = partnerBrandFilters
+    ? Object.entries(partnerBrandFilters)
+        .filter(([, isEnabled]) => isEnabled)
+        .map(([brand]) => brand)
+    : ['Walmart', '7-Eleven/Speedway', "Shaw's"] // Default all enabled if no filters
+
+  const enabledBrandCount = enabledBrands.length
+
+  // Filter partner stores to only include enabled brands, then group by partner_brand
+  const filteredStores = partnerStores.filter(store => {
+    const brand = store.partner_brand || 'Other'
+    return enabledBrands.includes(brand)
+  })
+
+  const partnersByBrand = filteredStores.reduce((acc, store) => {
+    const brand = store.partner_brand || 'Other'
     if (!acc[brand]) {
       acc[brand] = []
     }
@@ -175,20 +190,26 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
     return acc
   }, {})
 
-  // Sort brands by count and get top 2
+  // Sort brands by count
   const sortedBrands = Object.entries(partnersByBrand)
     .sort(([, a], [, b]) => b.length - a.length)
-    .slice(0, 2)
 
   // Count candidates without partner coverage (potential new store locations)
   const candidatesWithoutPartner = candidates.filter(c => !c.within_convenience_isochrone).length
 
-  // Build dynamic recommendations
+  // Build dynamic recommendations based on enabled brand count
   const recommendations = []
   const colors = ['blue', 'emerald', 'orange']
   const icons = [Store, Building2, MapPin]
 
-  sortedBrands.forEach(([brand, stores], idx) => {
+  // Determine how many partner brands to show and where "Open New Store" goes
+  // - 0 brands enabled: show message only
+  // - 1 brand enabled: show that brand as #1, "Open New Store" as #2, no #3
+  // - 2+ brands enabled: show top 2 brands, "Open New Store" as #3 (max 3 always)
+  const maxPartnerBrands = enabledBrandCount === 1 ? 1 : 2
+  const brandsToShow = sortedBrands.slice(0, maxPartnerBrands)
+
+  brandsToShow.forEach(([brand, stores], idx) => {
     recommendations.push({
       rank: idx + 1,
       name: brand,
@@ -199,15 +220,17 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
     })
   })
 
-  // Always add "Open New Store" option
-  recommendations.push({
-    rank: recommendations.length + 1,
-    name: 'Open New Store',
-    coverage: `${candidatesWithoutPartner} high-potential location${candidatesWithoutPartner !== 1 ? 's' : ''}`,
-    rationale: 'Candidates outside existing partner trade areas. Higher investment but full brand control and market presence.',
-    color: 'orange',
-    icon: MapPin,
-  })
+  // Add "Open New Store" option (position depends on enabled brand count)
+  if (enabledBrandCount > 0) {
+    recommendations.push({
+      rank: recommendations.length + 1,
+      name: 'Open New Store',
+      coverage: `${candidatesWithoutPartner} high-potential location${candidatesWithoutPartner !== 1 ? 's' : ''}`,
+      rationale: 'Candidates outside existing partner trade areas. Higher investment but full brand control and market presence.',
+      color: 'orange',
+      icon: MapPin,
+    })
+  }
 
   const colorClasses = {
     blue: {
@@ -233,7 +256,7 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
     },
   }
 
-  const totalPartners = partnerStores.length
+  const totalFilteredPartners = filteredStores.length
 
   return (
     <AccordionItem value="recommendations">
@@ -244,46 +267,57 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
         </div>
       </AccordionTrigger>
       <AccordionContent>
-        <p className="text-xs text-gray-500 mb-3">
-          {totalPartners > 0
-            ? `${totalPartners} partner store${totalPartners !== 1 ? 's' : ''} in current view`
-            : 'Pan/zoom to see partner stores'}
-        </p>
+        {/* Show message if no brands are enabled */}
+        {enabledBrandCount === 0 ? (
+          <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-sm text-gray-600 text-center">
+              Please select partner brands above to populate the full recommendation.
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500 mb-3">
+              {totalFilteredPartners > 0
+                ? `${totalFilteredPartners} partner store${totalFilteredPartners !== 1 ? 's' : ''} in current view`
+                : 'Pan/zoom to see partner stores'}
+            </p>
 
-        <div className="space-y-3">
-          {recommendations.map((rec) => {
-            const recColors = colorClasses[rec.color]
-            const Icon = rec.icon
-            return (
-              <Card key={rec.rank} className={cn('border-l-4 p-3', recColors.border, recColors.bg)}>
-                <div className="flex items-start gap-3">
-                  <div className={cn(
-                    'flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold flex-shrink-0',
-                    recColors.badge
-                  )}>
-                    {rec.rank}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Icon className={cn('w-4 h-4', recColors.icon)} />
-                      <span className={cn('font-semibold', recColors.title)}>{rec.name}</span>
+            <div className="space-y-3">
+              {recommendations.map((rec) => {
+                const recColors = colorClasses[rec.color]
+                const Icon = rec.icon
+                return (
+                  <Card key={rec.rank} className={cn('border-l-4 p-3', recColors.border, recColors.bg)}>
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        'flex items-center justify-center w-6 h-6 rounded-full text-white text-xs font-bold flex-shrink-0',
+                        recColors.badge
+                      )}>
+                        {rec.rank}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Icon className={cn('w-4 h-4', recColors.icon)} />
+                          <span className={cn('font-semibold', recColors.title)}>{rec.name}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-2">
+                          <strong>Coverage:</strong> {rec.coverage}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          <strong>Rationale:</strong> {rec.rationale}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-600 mb-2">
-                      <strong>Coverage:</strong> {rec.coverage}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      <strong>Rationale:</strong> {rec.rationale}
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            )
-          })}
-        </div>
+                  </Card>
+                )
+              })}
+            </div>
 
-        <p className="text-xs text-gray-400 mt-4 italic">
-          * Updates based on visible map area
-        </p>
+            <p className="text-xs text-gray-400 mt-4 italic">
+              * Updates based on visible map area and selected partner brands
+            </p>
+          </>
+        )}
       </AccordionContent>
     </AccordionItem>
   )

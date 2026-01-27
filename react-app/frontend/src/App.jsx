@@ -302,6 +302,7 @@ function App() {
                 <PartnershipRecommendationsSection
                   partnerStores={viewportPartnerStores}
                   candidates={viewportCandidates}
+                  partnerBrandFilters={partnerBrandFilters}
                 />
 
                 {/* Filters */}
