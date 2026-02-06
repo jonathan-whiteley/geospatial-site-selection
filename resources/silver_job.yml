@@ -85,7 +85,7 @@ resources:
               gold_schema: "${var.gold_schema}"
               current_stores_table: "${var.current_stores_table}"
               input_source: "lce"
-              valhalla_url: "https://valhalla1.openstreetmap.de"
+              valhalla_url: "${var.valhalla_url}"
 
           environment_key: "Serverless"
           timeout_seconds: 7200
@@ -102,7 +102,7 @@ resources:
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
               input_source: "partners"
-              valhalla_url: "https://valhalla1.openstreetmap.de"
+              valhalla_url: "${var.valhalla_url}"
 
           environment_key: "Serverless"
           timeout_seconds: 7200
@@ -135,7 +135,7 @@ resources:
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
               input_source: "candidate"
-              valhalla_url: "https://valhalla1.openstreetmap.de"
+              valhalla_url: "${var.valhalla_url}"
 
           environment_key: "Serverless"
           timeout_seconds: 7200

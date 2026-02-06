@@ -31,9 +31,7 @@ bundle:
 # 5. CENSUS API KEY:
 #    - Get a free API key from: https://api.census.gov/data/key_signup.html
 #    - Update `census_api_key` with your key
-#
-# 6. USER EMAIL (optional but recommended):
-#    - Update `user_email` for job failure notifications
+#    - For production: use Databricks Secrets instead (see variable comment below)
 #
 # OPTIONAL UPDATES (marked with ℹ️):
 # - State/Region: Update state_fips, osm_url, osm_region for different geographic area
@@ -133,8 +131,12 @@ variables:
 
   # Census API Configuration
   # ⚠️ UPDATE THIS: Get your free API key from https://api.census.gov/data/key_signup.html
+  # NOTE: For production, move this to a Databricks Secret Scope instead of storing in plain text:
+  #   databricks secrets create-scope census
+  #   databricks secrets put-secret census api_key --string-value "<your-key>"
+  #   Then reference in notebooks: dbutils.secrets.get("census", "api_key")
   census_api_key:
-    description: "US Census Bureau API key"
+    description: "US Census Bureau API key (consider using Databricks Secrets for production)"
     default: "7f801eabbdf7763d74330e776061901753eb2878"
 
   acs_year:
@@ -159,8 +161,8 @@ variables:
   # POI Configuration
   # Multi-state filter for Northeast region training data
   state_filter:
-    description: "Comma-separated state abbreviations for H3 features training data (e.g., MA,CT,NJ,MD)"
-    default: "MA,CT,NJ,MD"
+    description: "Comma-separated state abbreviations for H3 features training data"
+    default: "MA,MI,VA,NY,WA,MD,NJ"
 
   # Expansion target state (whitespace locations)
   expansion_state:
@@ -172,7 +174,7 @@ variables:
   # Required columns: location_id (or store_number), latitude, longitude, city, state, annual_sales
   lce_locations_raw_table:
     description: "Source table with current store locations and sales data (full 3-part name)"
-    default: "ioc_sandbox.ai_strategy.lce_locations_ne"
+    default: "ioc_sandbox.ai_strategy.lce_locations_raw"
 
   # Standardized output table name (created by bronze job)
   current_stores_table:
@@ -186,10 +188,16 @@ variables:
     description: "CARTO Marketplace H3 features table (full 3-part name)"
     default: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
 
+  # Isochrone Routing
+  # ℹ️ OPTIONAL: Valhalla open-source routing server for drive-time isochrones
+  valhalla_url:
+    description: "Valhalla routing API URL for isochrone generation"
+    default: "https://valhalla1.openstreetmap.de"
+
   # Notifications
-  # ⚠️ UPDATE THIS: Replace with your email for job failure alerts
+  # ℹ️ OPTIONAL: Uncomment email_notifications in job YMLs to enable
   user_email:
-    description: "Email address for job notifications"
+    description: "Email address for job failure notifications"
     default: ""
 
   # Genie Space Configuration
