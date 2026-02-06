@@ -47,9 +47,13 @@ references/
 # IDE
 .idea/
 .vscode/
+.cursor/
+.mcp.json
 *.swp
 
 scratch/
 exploration/
 .claude/
 claude/
+.ai-dev-kit/
+bc_nrf_app/

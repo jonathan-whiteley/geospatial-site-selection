@@ -14,17 +14,17 @@ async def get_expansion_candidates(
     max_sales: Optional[float] = Query(None, description="Maximum predicted annual sales"),
     min_population: Optional[float] = Query(None, description="Minimum population"),
     max_population: Optional[float] = Query(None, description="Maximum population"),
-    fulfillment_strategy: Optional[str] = Query(None, description="Filter by strategy: partner or new_store"),
-    quality_tier: Optional[str] = Query(None, description="Filter by quality tier: top_25, top_50, etc.")
+    fulfillment_strategy: Optional[str] = Query(None, description="Filter by strategy: Partner Fulfillment or New Store")
 ):
     """
     Get expansion candidate locations with optional filtering.
 
     Pre-computed fields include:
-    - fulfillment_strategy: 'partner' or 'new_store'
+    - fulfillment_strategy: 'Partner Fulfillment' or 'New Store'
     - within_partner_isochrone: Boolean for partner proximity
     - min_distance_to_existing: Distance to nearest current store
-    - quality_tier: 'top_25', 'top_50', 'top_75', 'bottom_25'
+    - partner_brand: Walmart, 7-Eleven/Speedway, Shaw's
+    - cannibalization_risk: High, Medium, Low, None
 
     Returns:
         List of expansion candidates matching filter criteria
@@ -37,8 +37,7 @@ async def get_expansion_candidates(
             max_sales=max_sales,
             min_population=min_population,
             max_population=max_population,
-            fulfillment_strategy=fulfillment_strategy,
-            quality_tier=quality_tier
+            fulfillment_strategy=fulfillment_strategy
         )
         return candidates
     except Exception as e:

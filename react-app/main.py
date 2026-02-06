@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from api.routes import health, stores, expansion, optimization, metrics, init
+from api.routes import health, stores, expansion, optimization, metrics, init, agent
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -35,6 +35,7 @@ app.include_router(stores.router, prefix="/api")
 app.include_router(expansion.router, prefix="/api")
 app.include_router(optimization.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
+app.include_router(agent.router, prefix="/api")  # Multi-agent chat proxy
 
 # Determine frontend build path
 FRONTEND_BUILD_DIR = Path(__file__).parent / "frontend" / "dist"

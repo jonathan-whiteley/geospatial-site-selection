@@ -2,9 +2,7 @@ bundle:
   name: geospatial-site-selection
 
 # Bundle-level permissions - applies to all resources (jobs, schemas, etc.)
-permissions:
-  - level: CAN_MANAGE
-    group_name: lce-ai-strategy-guest
+
 
 # ============================================================================
 # DEPLOYMENT CONFIGURATION FOR NEW WORKSPACE
@@ -98,8 +96,11 @@ targets:
     default: true
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+      # file_path: ${workspace.root_path}
+      # artifact_path: ${workspace.root_path}
+      # state_path: ${workspace.root_path}
     # Uses variable defaults from bundle-level variables section
 
   # Development target - adds dev_{username}_ prefix to avoid conflicts
@@ -107,7 +108,7 @@ targets:
     mode: development
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
@@ -116,7 +117,7 @@ variables:
   # Unity Catalog
   catalog:
     description: "Unity Catalog name"
-    default: "ioc_sandbox"
+    default: "jdub_demo"
 
   bronze_schema:
     description: "Bronze schema for raw ingested data"
@@ -172,6 +173,7 @@ variables:
   lce_locations_raw_table:
     description: "Source table with current store locations and sales data (full 3-part name)"
     default: "ioc_sandbox.ai_strategy.lce_locations_ne"
+
   # Standardized output table name (created by bronze job)
   current_stores_table:
     description: "Current stores table name with sales data (created by bronze_census_ingestion job)"
@@ -182,10 +184,18 @@ variables:
   # The catalog name is assigned during Marketplace installation (e.g., dbmp_carto_spatial_features_usa_h3_res_8)
   carto_table:
     description: "CARTO Marketplace H3 features table (full 3-part name)"
-    default: "dbmp_carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
+    default: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
 
   # Notifications
   # ⚠️ UPDATE THIS: Replace with your email for job failure alerts
   user_email:
     description: "Email address for job notifications"
     default: ""
+
+  # Genie Space Configuration
+  # ⚠️ UPDATE THIS: Required for creating Genie space in viz_layer_prep notebook
+  # Get warehouse ID from: SQL Warehouses → Select warehouse → Copy ID from URL or Connection Details
+  # Must be a Pro or Serverless SQL warehouse (Standard warehouses do not support Genie)
+  sql_warehouse_id:
+    description: "SQL Pro or Serverless warehouse ID for Genie space creation"
+    default: "0168e23e24e6ae10"

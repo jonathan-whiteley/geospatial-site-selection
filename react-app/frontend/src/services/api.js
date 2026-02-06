@@ -79,7 +79,6 @@ export async function getExpansionCandidates(filters = {}) {
   if (filters.minPopulation) params.append('min_population', filters.minPopulation)
   if (filters.maxPopulation) params.append('max_population', filters.maxPopulation)
   if (filters.fulfillmentStrategy) params.append('fulfillment_strategy', filters.fulfillmentStrategy)
-  if (filters.qualityTier) params.append('quality_tier', filters.qualityTier)
 
   const response = await api.get(`/expansion/candidates?${params.toString()}`)
   return response.data

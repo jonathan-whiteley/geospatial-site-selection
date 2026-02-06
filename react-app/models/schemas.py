@@ -80,7 +80,11 @@ class ExpansionCandidate(BaseModel):
     partner_city: Optional[str] = None
     partner_drive_time: Optional[float] = None
     fulfillment_strategy: Optional[str] = "new_store"
-    quality_tier: Optional[str] = None
+    partner_brand: Optional[str] = None  # Walmart, 7-Eleven/Speedway, Shaw's
+    partner_type: Optional[str] = None  # Big Box, Convenience, Grocery
+    sales_rank: Optional[int] = None
+    region: Optional[str] = None  # Boston Metro, Greater Boston, Western MA, Cape & Islands
+    cannibalization_risk: Optional[str] = None  # High, Medium, Low, None
     center_lat: Optional[float] = None
     center_lon: Optional[float] = None
     geometry_geojson: Optional[str] = None

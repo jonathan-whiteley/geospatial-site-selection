@@ -35,8 +35,8 @@ function MapPanes() {
 /**
  * LCE Store isochrones (green)
  */
-function IsochroneLayer({ isochrones }) {
-  if (!isochrones || isochrones.length === 0) return null
+function IsochroneLayer({ isochrones, visible }) {
+  if (!visible || !isochrones || isochrones.length === 0) return null
 
   return (
     <>
@@ -396,8 +396,8 @@ export function GeospatialMap({
           maxZoom={20}
         />
 
-        {/* LCE Isochrones (always visible) */}
-        <IsochroneLayer isochrones={networkData?.isochrones} />
+        {/* LCE Isochrones (tied to current stores visibility) */}
+        <IsochroneLayer isochrones={networkData?.isochrones} visible={layers.currentStores} />
 
         {/* Partner isochrones */}
         <PartnerIsochroneLayer

@@ -92,10 +92,6 @@ export default function MarkerClusterGroup({ children, salesRange }) {
                 extractSalesFromChild(child),
             })
 
-            if (eventHandlers?.click) {
-              marker.on('click', eventHandlers.click)
-            }
-
             // Add popup if exists
             if (popup && popup.props?.children) {
               const popupContent = typeof popup.props.children === 'string'
@@ -106,6 +102,14 @@ export default function MarkerClusterGroup({ children, salesRange }) {
                 minWidth: 180
               })
             }
+
+            // Handle click: call original handler and explicitly open popup on single click
+            marker.on('click', (e) => {
+              if (eventHandlers?.click) {
+                eventHandlers.click(e)
+              }
+              marker.openPopup()
+            })
 
             cluster.addLayer(marker)
           }

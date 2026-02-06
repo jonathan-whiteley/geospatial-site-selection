@@ -43,6 +43,7 @@ resources:
               - "shap"
               - "seaborn"
               - "matplotlib"
+              - "databricks-sdk>=0.20.0"  # Required for Genie space creation
 
       tasks:
         # Aggregate features for current stores (training data for ML model)
@@ -89,7 +90,7 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 5400
 
-        # Visualization layer preparation
+        # Visualization layer preparation + Genie space creation
         - task_key: "viz_layer_prep"
           depends_on:
             - task_key: "predict_candidate_sales"
@@ -100,6 +101,9 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
               gold_schema: "${var.gold_schema}"
+              # Genie space creation (optional - leave empty to skip)
+              # Set sql_warehouse_id in databricks.yml to enable
+              sql_warehouse_id: "${var.sql_warehouse_id}"
 
           environment_key: "Serverless"
           timeout_seconds: 3600

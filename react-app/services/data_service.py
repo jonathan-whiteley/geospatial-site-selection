@@ -112,7 +112,7 @@ class DataService:
                        geometry_geojson as isochrone_geojson,
                        candidate_count_in_isochrone,
                        total_candidate_sales_in_isochrone,
-                       name, latitude, longitude, store_type as poi_category, poi_subcategory,
+                       name, latitude, longitude, store_type as poi_category,
                        partner_brand
                 FROM {gold}.viz_partners
             """)
@@ -140,7 +140,6 @@ class DataService:
                     'latitude': r['latitude'],
                     'longitude': r['longitude'],
                     'poi_category': r['poi_category'],
-                    'poi_subcategory': r['poi_subcategory'],
                     'partner_brand': r.get('partner_brand')
                 }
                 for r in records
@@ -218,8 +217,7 @@ class DataService:
         max_sales: Optional[float] = None,
         min_population: Optional[float] = None,
         max_population: Optional[float] = None,
-        fulfillment_strategy: Optional[str] = None,
-        quality_tier: Optional[str] = None
+        fulfillment_strategy: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Load expansion candidate locations with optional SQL-level filtering.
@@ -239,8 +237,6 @@ class DataService:
             conditions.append(f"population <= {max_population}")
         if fulfillment_strategy is not None:
             conditions.append(f"fulfillment_strategy = '{fulfillment_strategy}'")
-        if quality_tier is not None:
-            conditions.append(f"quality_tier = '{quality_tier}'")
 
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
@@ -250,22 +246,15 @@ class DataService:
             print(f"Loading viz_expansion_candidates{filter_desc}...")
             candidates_df = self.db.execute_query(f"""
                 SELECT h3_cell_id as store_number,
-                       COALESCE(
-                           CASE
-                               WHEN partner_city IS NOT NULL THEN partner_city
-                               WHEN urbanity IN ('Very_High_density_urban', 'High_density_urban') THEN 'Boston Metro'
-                               WHEN urbanity IN ('Medium_density_urban', 'Low_density_urban') THEN 'Greater Boston'
-                               ELSE 'Massachusetts'
-                           END,
-                           'Massachusetts'
-                       ) as city,
+                       COALESCE(city, 'Massachusetts') as city,
                        'MA' as state,
                        latitude, longitude,
                        predicted_annual_sales, population, total_poi_count,
                        min_distance_to_existing, nearest_existing_store,
                        within_partner_isochrone, partner_store_name,
                        partner_city, partner_drive_time,
-                       fulfillment_strategy, quality_tier,
+                       fulfillment_strategy, partner_brand, partner_type,
+                       sales_rank, region, cannibalization_risk,
                        center_lat, center_lon, geometry_geojson
                 FROM {gold}.viz_expansion_candidates
                 {where_clause}
