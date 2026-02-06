@@ -2,78 +2,10 @@ bundle:
   name: geospatial-site-selection
 
 # Bundle-level permissions - applies to all resources (jobs, schemas, etc.)
+permissions:
+  - level: CAN_MANAGE
+    group_name: lce-ai-strategy-guest
 
-
-# ============================================================================
-# DEPLOYMENT CONFIGURATION FOR NEW WORKSPACE
-# ============================================================================
-# When deploying to a NEW workspace, update these settings:
-#
-# REQUIRED UPDATES (marked with ⚠️):
-# 1. WORKSPACE HOST:
-#    - Update `workspace.host` in BOTH production and development targets
-#    - Both targets typically use the same workspace URL
-#
-# 2. CATALOG & SCHEMAS:
-#    - Update `catalog` default value to your Unity Catalog name
-#    - Update `bronze_schema`, `silver_schema`, `gold_schema` defaults
-#    - These defaults apply to BOTH production and development targets
-#
-# 3. CURRENT LOCATIONS TABLE:
-#    - Update `lce_locations_raw_table` to point to your store locations data
-#    - Required columns: location_id, latitude, longitude, city, state, annual_sales
-#
-# 4. CARTO MARKETPLACE TABLE:
-#    - Update `carto_table` to your CARTO Marketplace H3 features table
-#    - Must be installed from Databricks Marketplace first
-#    - Default assumes catalog prefix: dbmp_carto_spatial_features_usa_h3_res_8
-#
-# 5. CENSUS API KEY:
-#    - Get a free API key from: https://api.census.gov/data/key_signup.html
-#    - Update `census_api_key` with your key
-#    - For production: use Databricks Secrets instead (see variable comment below)
-#
-# OPTIONAL UPDATES (marked with ℹ️):
-# - State/Region: Update state_fips, osm_url, osm_region for different geographic area
-# - State Filter: Update state_filter for training data coverage
-#
-# DEPLOYMENT STEPS:
-# 1. Update the REQUIRED settings above (marked with ⚠️)
-# 2. Deploy the bundle to create Unity Catalog resources:
-#    $ databricks bundle deploy
-#    (Uses production target by default - creates resources with exact names)
-#
-#    For development with isolated schemas, use:
-#    $ databricks bundle deploy -t development
-#    (Adds dev_{username}_ prefix to avoid conflicts)
-#
-#    If schemas already exist, you may see "Schema already exists" errors.
-#    To fix this, you have two options:
-#
-#    Option A - Delete existing schemas (if safe to do so):
-#      $ databricks schemas delete {catalog}.geo_bronze
-#      $ databricks schemas delete {catalog}.geo_silver
-#      $ databricks schemas delete {catalog}.geo_gold
-#      Then redeploy: databricks bundle deploy
-#
-#    Option B - Deploy without schema management:
-#      Comment out the "schemas:" section in resources/catalog_setup.yml
-#      The bundle will only manage volumes and jobs, not schemas
-#
-# 3. Verify the volume was created (IMPORTANT - troubleshooting step):
-#    $ databricks volumes list {catalog}.{bronze_schema}
-#    Expected output: osm_data volume should be listed
-#    If not listed, the bronze_census_ingestion job will fail with volume errors
-# 4. Manually upload the RAW LCE store locations table to:
-#    {catalog}.{bronze_schema}.lce_locations_raw
-#    Required columns: LocationKey, Y_Coordinate_Latitude, X_Coordinate_Longitude,
-#                      Address1, City, State, Zip, StoreStatus
-#    The bronze job will transform this into lce_locations_mass
-# 5. Run the pipeline jobs in order:
-#    - bronze_census_ingestion → silver_poi_processing → gold_feature_engineering
-#
-# See PIPELINE_DEPENDENCIES.md for detailed documentation
-# ============================================================================
 
 include:
   - resources/bronze_job.yml
@@ -94,28 +26,28 @@ targets:
     default: true
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
+      host: https://adb-30827331698809.9.azuredatabricks.net
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
-      # file_path: ${workspace.root_path}
-      # artifact_path: ${workspace.root_path}
-      # state_path: ${workspace.root_path}
-    # Uses variable defaults from bundle-level variables section
 
   # Development target - adds dev_{username}_ prefix to avoid conflicts
   development:
     mode: development
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
+      host: https://adb-30827331698809.9.azuredatabricks.net
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
 variables:
-  # ⚠️ UPDATE THESE DEFAULTS - Both targets will use these values
-  # Unity Catalog
+
+  # ============================================================================
+  # ⚠️ REQUIRED - Update these for each new workspace deployment
+  # ============================================================================
+
+  # Unity Catalog & Schemas
   catalog:
     description: "Unity Catalog name"
-    default: "jdub_demo"
+    default: "ioc_sandbox"
 
   bronze_schema:
     description: "Bronze schema for raw ingested data"
@@ -129,81 +61,76 @@ variables:
     description: "Gold schema for aggregated features and analytics"
     default: "geo_gold"
 
-  # Census API Configuration
-  # ⚠️ UPDATE THIS: Get your free API key from https://api.census.gov/data/key_signup.html
-  # NOTE: For production, move this to a Databricks Secret Scope instead of storing in plain text:
-  #   databricks secrets create-scope census
-  #   databricks secrets put-secret census api_key --string-value "<your-key>"
-  #   Then reference in notebooks: dbutils.secrets.get("census", "api_key")
-  census_api_key:
-    description: "US Census Bureau API key (consider using Databricks Secrets for production)"
-    default: "7f801eabbdf7763d74330e776061901753eb2878"
-
-  acs_year:
-    description: "ACS 5-Year ending year"
-    default: "2023"
-
-  # ℹ️ OPTIONAL: Update these if analyzing a different state/region
-  state_fips:
-    description: "State FIPS code (25 = Massachusetts, 06 = California, 36 = New York, etc.)"
-    default: "25"
-
-  # OSM Configuration
-  # ℹ️ OPTIONAL: Update for different region from https://download.geofabrik.de/
-  osm_url:
-    description: "Geofabrik OSM download URL"
-    default: "https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf"
-
-  osm_region:
-    description: "OSM region name"
-    default: "massachusetts"
-
-  # POI Configuration
-  # Multi-state filter for Northeast region training data
-  state_filter:
-    description: "Comma-separated state abbreviations for H3 features training data"
-    default: "MA,MI,VA,NY,WA,MD,NJ"
-
-  # Expansion target state (whitespace locations)
-  expansion_state:
-    description: "Target state for expansion candidate locations (whitespace analysis)"
-    default: "MA"
-
-  # Current Locations Table
-  # ⚠️ UPDATE THIS: Point to your existing store locations table with sales data
-  # Required columns: location_id (or store_number), latitude, longitude, city, state, annual_sales
+  # Data Sources
   lce_locations_raw_table:
     description: "Source table with current store locations and sales data (full 3-part name)"
     default: "ioc_sandbox.ai_strategy.lce_locations_raw"
 
-  # Standardized output table name (created by bronze job)
-  current_stores_table:
-    description: "Current stores table name with sales data (created by bronze_census_ingestion job)"
-    default: "current_stores_ne"
-
-  # CARTO Marketplace Configuration
-  # ⚠️ UPDATE THIS: Must install CARTO Spatial Features from Databricks Marketplace first
-  # The catalog name is assigned during Marketplace installation (e.g., dbmp_carto_spatial_features_usa_h3_res_8)
   carto_table:
-    description: "CARTO Marketplace H3 features table (full 3-part name)"
-    default: "carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
+    description: "CARTO Marketplace H3 features table (full 3-part name, install from Marketplace first)"
+    default: "dbmp_carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
+
+  # SQL Warehouse (required for Genie space creation)
+  # Get ID from: SQL Warehouses → Select warehouse → Copy ID from URL or Connection Details
+  # Must be a Pro or Serverless SQL warehouse (Standard does not support Genie)
+  sql_warehouse_id:
+    description: "SQL Pro or Serverless warehouse ID for Genie space creation"
+    default: "610ea94e1066f95b"
+
+  # Census API
+  # NOTE: For production, move to Databricks Secrets instead of plain text:
+  #   databricks secrets create-scope census
+  #   databricks secrets put-secret census api_key --string-value "<your-key>"
+  #   Then reference in notebooks: dbutils.secrets.get("census", "api_key")
+  census_api_key:
+    description: "US Census Bureau API key (get from https://api.census.gov/data/key_signup.html)"
+    default: "7f801eabbdf7763d74330e776061901753eb2878"
+
+  # ============================================================================
+  # ℹ️ OPTIONAL - Sensible defaults, update to change geographic scope
+  # ============================================================================
+
+  # Geographic Scope
+  state_filter:
+    description: "Comma-separated state abbreviations for H3 features / training data coverage"
+    default: "MA,MI,VA,NY,WA,MD,NJ"
+
+  expansion_state:
+    description: "Target state for expansion candidate locations (whitespace analysis)"
+    default: "MA"
+
+  state_fips:
+    description: "State FIPS code for Census block group downloads (25=MA, 36=NY, 26=MI, etc.)"
+    default: "25"
+
+  # OSM POI Data
+  # Download URLs: https://download.geofabrik.de/
+  osm_url:
+    description: "Geofabrik OSM download URL for POI extraction"
+    default: "https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf"
+
+  osm_region:
+    description: "OSM region name (used for file naming)"
+    default: "massachusetts"
 
   # Isochrone Routing
-  # ℹ️ OPTIONAL: Valhalla open-source routing server for drive-time isochrones
   valhalla_url:
-    description: "Valhalla routing API URL for isochrone generation"
+    description: "Valhalla routing API URL for drive-time isochrone generation"
     default: "https://valhalla1.openstreetmap.de"
 
-  # Notifications
-  # ℹ️ OPTIONAL: Uncomment email_notifications in job YMLs to enable
+  # Notifications (uncomment email_notifications in job YMLs to enable)
   user_email:
     description: "Email address for job failure notifications"
     default: ""
 
-  # Genie Space Configuration
-  # ⚠️ UPDATE THIS: Required for creating Genie space in viz_layer_prep notebook
-  # Get warehouse ID from: SQL Warehouses → Select warehouse → Copy ID from URL or Connection Details
-  # Must be a Pro or Serverless SQL warehouse (Standard warehouses do not support Genie)
-  sql_warehouse_id:
-    description: "SQL Pro or Serverless warehouse ID for Genie space creation"
-    default: "0168e23e24e6ae10"
+  # ============================================================================
+  # Pipeline Internals - Rarely need to change
+  # ============================================================================
+
+  acs_year:
+    description: "ACS 5-Year survey ending year"
+    default: "2023"
+
+  current_stores_table:
+    description: "Output table name for current stores (created by bronze job)"
+    default: "current_stores_raw"
