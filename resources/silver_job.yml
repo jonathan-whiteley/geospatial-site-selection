@@ -57,6 +57,7 @@ resources:
           timeout_seconds: 3600
 
         # Clean H3 features with derived columns (includes CARTO ingestion)
+        # Reads: CARTO marketplace + bronze.census_states (no silver dependencies)
         - task_key: "clean_h3_features"
           notebook_task:
             notebook_path: ../transformations/02_silver/clean_h3_features.ipynb
@@ -69,13 +70,10 @@ resources:
 
           environment_key: "Serverless"
           timeout_seconds: 1800
-          depends_on:
-            - task_key: "clean_pois" # Needs census_states table from bronze
 
         # Generate LCE store isochrones (Valhalla)
+        # Reads: bronze.current_stores_raw (no silver dependencies)
         - task_key: "create_isochrones_lce"
-          depends_on:
-            - task_key: "clean_pois"
           notebook_task:
             notebook_path: ../transformations/02_silver/create_isochrones.ipynb
             base_parameters:
