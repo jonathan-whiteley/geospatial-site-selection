@@ -131,6 +131,3 @@ variables:
     description: "ACS 5-Year survey ending year"
     default: "2023"
 
-  current_stores_table:
-    description: "Output table name for current stores (created by bronze job)"
-    default: "current_stores_raw"

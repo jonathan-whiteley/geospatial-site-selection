@@ -37,7 +37,7 @@ resources:
               - "osmium"
 
       tasks:
-        # Current stores ingestion with sales data (Northeast region: MA, CT, NJ, MD)
+        # Current stores ingestion with sales data
         - task_key: "ingest_current_stores"
           notebook_task:
             notebook_path: ../transformations/01_bronze/ingest_current_stores.ipynb

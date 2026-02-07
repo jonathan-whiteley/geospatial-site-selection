@@ -53,7 +53,7 @@ The notebook's `Supported States` comment says "MA, CT, NJ, MD" but the code doe
 
 **C. `transformations/02_silver/create_isochrones.ipynb`** - Generate isochrones for new stores
 
-Isochrones are generated for all stores in `current_stores_ne`. Since the bronze table will now contain stores from all 7 states, isochrones will automatically be generated for the new stores. No code change needed if the notebook processes all stores in the table.
+Isochrones are generated for all stores in `current_stores_raw`. Since the bronze table will now contain stores from all 7 states, isochrones will automatically be generated for the new stores. No code change needed if the notebook processes all stores in the table.
 
 **D. `transformations/03_gold/agg_h3_features_current_stores.ipynb`** - Aggregate features for all stores
 
