@@ -13,5 +13,5 @@ env:
   - name: DATABRICKS_BRONZE_SCHEMA
     value: geo_bronze
   - name: DATABRICKS_AGENT_ENDPOINT
-    value: mas-06a73aba-endpoint # TODO: update this to the correct endpoint
+    value: mas-7d62eac6-endpoint
 
