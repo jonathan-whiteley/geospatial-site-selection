@@ -103,16 +103,6 @@ variables:
     description: "State FIPS code for Census block group downloads (25=MA, 36=NY, 26=MI, etc.)"
     default: "25"
 
-  # OSM POI Data
-  # Download URLs: https://download.geofabrik.de/
-  osm_url:
-    description: "Geofabrik OSM download URL for POI extraction"
-    default: "https://download.geofabrik.de/north-america/us/massachusetts-latest.osm.pbf"
-
-  osm_region:
-    description: "OSM region name (used for file naming)"
-    default: "massachusetts"
-
   # Isochrone Routing
   valhalla_url:
     description: "Valhalla routing API URL for drive-time isochrone generation"

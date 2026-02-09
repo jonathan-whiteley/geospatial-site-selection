@@ -60,9 +60,8 @@ resources:
           timeout_seconds: 3600
 
         # Aggregate features for expansion candidates (prediction input)
+        # No dependency on agg_h3_features_current_stores - reads only silver tables
         - task_key: "agg_h3_features_candidates"
-          depends_on:
-            - task_key: "agg_h3_features_current_stores"
           notebook_task:
             notebook_path: ../transformations/03_gold/agg_h3_features_candidates.ipynb
             base_parameters:
@@ -77,6 +76,7 @@ resources:
         # ML model: train on current stores, predict on candidates, rank and finalize
         - task_key: "predict_candidate_sales"
           depends_on:
+            - task_key: "agg_h3_features_current_stores"
             - task_key: "agg_h3_features_candidates"
           notebook_task:
             notebook_path: ../transformations/03_gold/predict_candidate_sales.ipynb

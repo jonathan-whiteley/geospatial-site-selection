@@ -1,16 +1,42 @@
-# POI Extraction and Cleaning Configuration
-# Configuration for OpenStreetMap Point of Interest processing
-# Version: 1.0
+# POI Configuration
+# Single source of truth for brand definitions and POI cleaning settings
+# Used by: ingest_pois.ipynb (Overpass query) and clean_pois.ipynb (filtering)
 
-poi_extraction:
-  # Extract all POIs (set to true) or filter by specific tags (set to false)
-  extract_all: false
+# ============================================================================
+# Brand Definitions
+# ============================================================================
+brands:
+  # Partner brands - stores where co-location is desirable
+  # Overpass API uses regex substring matching on these names
+  # clean_pois uses exact name matching (lowercased) to avoid false positives
+  partner_brands:
+    - "Walmart"
+    - "Walmart Supercenter"
+    - "Walmart Neighborhood Market"
+    - "Speedway"
+    - "7-Eleven"
+    - "Shaw's"
+    - "Shaws"
 
-  # POI tag categories to extract (only used if extract_all is false)
-  poi_tag_categories:
-    - shop
-    - amenity
+  # Competitor brands - pizza competitors for exclusion analysis
+  competitor_brands:
+    - "Pizza Hut"
+    - "Domino's"
+    - "Dominos"
+    - "Papa John's"
+    - "Papa Johns"
 
+  # Display name mapping for partner brands (used in frontend/viz)
+  # Maps lowercase name substrings → display labels
+  partner_display_names:
+    walmart: "Walmart"
+    speedway: "7-Eleven/Speedway"
+    7-eleven: "7-Eleven/Speedway"
+    shaw: "Shaw's"
+
+# ============================================================================
+# POI Cleaning Settings (used by clean_pois.ipynb)
+# ============================================================================
 poi_cleaning:
   # POI ID prefix
   poi_id_prefix: "poi_"
@@ -39,7 +65,3 @@ poi_cleaning:
     latitude_max: 90
     longitude_min: -180
     longitude_max: 180
-
-paths:
-  # Temporary file path for OSM processing
-  temp_path: "/dbfs/tmp"

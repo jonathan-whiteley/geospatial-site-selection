@@ -34,7 +34,6 @@ resources:
             dependencies:
               - "pyyaml"
               - "pygris"
-              - "osmium"
 
       tasks:
         # Current stores ingestion with sales data
@@ -64,18 +63,16 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
-        # POI ingestion (OSM download + extraction)
+        # POI ingestion (Overpass API - queries OSM for partner/competitor brands)
         - task_key: "ingest_pois"
           notebook_task:
             notebook_path: ../transformations/01_bronze/ingest_pois.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
-              osm_url: "${var.osm_url}"
-              osm_region: "${var.osm_region}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
 
           environment_key: "Serverless"
-          timeout_seconds: 7200
+          timeout_seconds: 300
 
       max_concurrent_runs: 1
