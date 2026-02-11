@@ -49,14 +49,14 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 600
 
-        # Census ingestion (boundaries + demographics)
+        # Census ingestion (boundaries + demographics for all training states)
         - task_key: "ingest_census"
           notebook_task:
             notebook_path: ../transformations/01_bronze/ingest_census.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
-              state_fips: "${var.state_fips}"
+              state_filter: "${var.state_filter}"
               year: "${var.acs_year}"
               census_api_key: "${var.census_api_key}"
               config_path: "${workspace.file_path}/resources/configs/census_variables.yml"
@@ -64,8 +64,7 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
-        # POI ingestion (Overpass API - queries OSM for partner/competitor brands)
-        # Only queries expansion_state (MA) since branded POIs are for candidate mapping
+        # POI ingestion (OSM PBF - branded + general categories for all training states)
         - task_key: "ingest_pois"
           notebook_task:
             notebook_path: ../transformations/01_bronze/ingest_pois.ipynb
@@ -74,8 +73,10 @@ resources:
               bronze_schema: "${var.bronze_schema}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
               expansion_state: "${var.expansion_state}"
+              state_filter: "${var.state_filter}"
+              osm_categories_config: "${workspace.file_path}/resources/configs/osm_poi_categories.yml"
 
           environment_key: "Serverless"
-          timeout_seconds: 300
+          timeout_seconds: 1800
 
       max_concurrent_runs: 1

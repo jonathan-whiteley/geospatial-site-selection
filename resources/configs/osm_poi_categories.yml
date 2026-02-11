@@ -1,0 +1,145 @@
+# OSM POI Category Mappings
+# Maps OpenStreetMap tags to CARTO-compatible POI categories for H3 feature engineering.
+# Used by: ingest_pois.ipynb (general POI classification from PBF extracts)
+#
+# Each category lists the primary OSM key and the tag values that map to it.
+# A POI is classified by the FIRST matching category (priority order below).
+
+poi_categories:
+
+  food_drink:
+    amenity:
+      - restaurant
+      - cafe
+      - fast_food
+      - bar
+      - pub
+      - food_court
+      - ice_cream
+      - biergarten
+
+  retail:
+    shop:
+      - supermarket
+      - convenience
+      - department_store
+      - clothes
+      - shoes
+      - electronics
+      - hardware
+      - furniture
+      - books
+      - gifts
+      - sports
+      - toys
+      - beauty
+      - optician
+      - jewelry
+      - florist
+      - bakery
+      - butcher
+      - greengrocer
+      - deli
+      - general
+      - mall
+      - variety_store
+      - chemist
+      - mobile_phone
+      - car
+      - car_parts
+      - bicycle
+      - outdoor
+      - pet
+      - garden_centre
+      - doityourself
+      - stationery
+      - alcohol
+      - beverages
+      - tobacco
+      - newsagent
+      - kiosk
+      - cosmetics
+      - hairdresser
+
+  education:
+    amenity:
+      - school
+      - university
+      - college
+      - library
+      - kindergarten
+      - language_school
+      - music_school
+      - driving_school
+
+  healthcare:
+    amenity:
+      - hospital
+      - clinic
+      - pharmacy
+      - dentist
+      - doctors
+      - veterinary
+      - nursing_home
+
+  financial:
+    amenity:
+      - bank
+      - atm
+      - bureau_de_change
+    shop:
+      - money_lender
+
+  leisure:
+    leisure:
+      - park
+      - playground
+      - sports_centre
+      - fitness_centre
+      - swimming_pool
+      - pitch
+      - stadium
+      - golf_course
+      - dog_park
+      - nature_reserve
+    amenity:
+      - cinema
+      - theatre
+      - nightclub
+      - community_centre
+      - arts_centre
+
+  tourism:
+    tourism:
+      - hotel
+      - motel
+      - hostel
+      - museum
+      - attraction
+      - viewpoint
+      - gallery
+      - theme_park
+      - zoo
+      - aquarium
+      - camp_site
+      - information
+
+  transportation:
+    amenity:
+      - bus_station
+      - fuel
+      - parking
+      - taxi
+      - car_rental
+      - car_wash
+      - bicycle_rental
+      - charging_station
+    railway:
+      - station
+      - halt
+    public_transport:
+      - station
+      - stop_position
+    aeroway:
+      - aerodrome
+      - terminal

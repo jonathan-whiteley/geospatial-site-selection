@@ -28,7 +28,7 @@ targets:
     default: true
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
 
   # Development target - adds dev_{username}_ prefix to avoid conflicts
@@ -36,7 +36,7 @@ targets:
     mode: development
     workspace:
       # ⚠️ UPDATE THIS: Replace with your Databricks workspace URL
-      host: https://adb-30827331698809.9.azuredatabricks.net
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
@@ -49,7 +49,7 @@ variables:
   # Unity Catalog & Schemas
   catalog:
     description: "Unity Catalog name"
-    default: "ioc_sandbox"
+    default: "jdub_demo"
 
   bronze_schema:
     description: "Bronze schema for raw ingested data"
@@ -66,18 +66,14 @@ variables:
   # Data Sources
   lce_locations_raw_table:
     description: "Source table with current store locations and sales data (full 3-part name)"
-    default: "ioc_sandbox.ai_strategy.lce_locations_raw"
-
-  carto_table:
-    description: "CARTO Marketplace H3 features table (full 3-part name, install from Marketplace first)"
-    default: "dbmp_carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3"
+    default: "jdub_demo.little_caesars.d_locations_raw_500"
 
   # SQL Warehouse (required for Genie space creation)
   # Get ID from: SQL Warehouses → Select warehouse → Copy ID from URL or Connection Details
   # Must be a Pro or Serverless SQL warehouse (Standard does not support Genie)
   sql_warehouse_id:
     description: "SQL Pro or Serverless warehouse ID for Genie space creation"
-    default: "610ea94e1066f95b"
+    default: "0168e23e24e6ae10"
 
   # Census API
   # NOTE: For production, move to Databricks Secrets instead of plain text:
@@ -100,10 +96,6 @@ variables:
   expansion_state:
     description: "Target state for expansion candidate locations (whitespace analysis)"
     default: "MA"
-
-  state_fips:
-    description: "State FIPS code for Census block group downloads (25=MA, 36=NY, 26=MI, etc.)"
-    default: "25"
 
   # Isochrone Routing
   valhalla_url:

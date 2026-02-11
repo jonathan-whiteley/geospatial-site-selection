@@ -4,7 +4,7 @@ resources:
       name: "Gold - Predictions & Visualization"
 
       # PREREQUISITES - Required tables from silver schema:
-      # - h3_features_clean (from clean_h3_features.ipynb - includes CARTO ingestion)
+      # - h3_features_clean (from create_h3_features.ipynb - Census + OSM)
       # - isochrones_lce (from create_isochrones.ipynb - Valhalla)
       # - pois_competitors (from clean_pois.ipynb)
       # - pois_partners (from clean_pois.ipynb)

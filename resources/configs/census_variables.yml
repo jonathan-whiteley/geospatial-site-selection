@@ -1,22 +1,27 @@
 # Census ACS 5-Year Variables Configuration
-# Comprehensive demographic variables for site selection
-# Version: 1.0
-# Last Updated: 2025-10-29
+# Keep total count under 49 (Census API limit: 50 including NAME)
+# Current count: 42 variables
 
 acs_5_year_variables:
-  # Population
+  # Population (1 variable)
   population:
     B01003_001E: total_population
-    B01001_003E: male_under_5
-    B01001_027E: female_under_5
-    B01001_007E: male_18_to_24
-    B01001_031E: female_18_to_24
-    B01001_013E: male_45_to_54
-    B01001_037E: female_45_to_54
-    B01001_016E: male_65_to_74
-    B01001_040E: female_65_to_74
 
-  # Income
+  # Target Demographic (ages 20-34, split into individual Census bins)
+  # Combined into male/female_20_to_24, _25_to_29, _30_to_34 during H3 feature engineering
+  target_demographic:
+    B01001_008E: male_20
+    B01001_009E: male_21
+    B01001_010E: male_22_to_24
+    B01001_011E: male_25_to_29
+    B01001_012E: male_30_to_34
+    B01001_032E: female_20
+    B01001_033E: female_21
+    B01001_034E: female_22_to_24
+    B01001_035E: female_25_to_29
+    B01001_036E: female_30_to_34
+
+  # Income (18 variables)
   income:
     B19013_001E: median_household_income
     B19301_001E: per_capita_income
@@ -37,11 +42,11 @@ acs_5_year_variables:
     B19001_016E: income_150k_200k
     B19001_017E: income_200k_plus
 
-  # Households
+  # Households (1 variable)
   households:
     B11001_001E: total_households
 
-  # Education
+  # Education (5 variables)
   education:
     B15003_017E: high_school_grad
     B15003_022E: bachelors_degree
@@ -49,24 +54,15 @@ acs_5_year_variables:
     B15003_024E: professional_degree
     B15003_025E: doctorate_degree
 
-  # Employment
+  # Employment (4 variables)
   employment:
     B23025_002E: in_labor_force
     B23025_005E: employed
     B23025_007E: not_in_labor_force
     B23025_004E: unemployment_count
 
-  # Housing
+  # Housing (3 variables)
   housing:
     B25077_001E: median_home_value
     B25002_003E: vacant_housing_units
     B25064_001E: median_gross_rent
-
-
-  # Commute
-  commute:
-    B08303_001E: total_commuters
-    B08303_002E: commute_under_10_min
-    B08303_008E: commute_30_44_min
-    B08303_012E: commute_60_89_min
-    B08303_013E: commute_90_plus_min

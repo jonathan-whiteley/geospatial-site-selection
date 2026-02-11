@@ -6,10 +6,10 @@ resources:
       # PREREQUISITES - Required tables in bronze schema:
       # - current_stores_raw (stores - created by bronze_census_ingestion job)
       # - census_states (state boundaries - created by bronze_census_ingestion job)
-      # - raw_pois (from bronze_census_ingestion job)
-      #
-      # External data sources:
-      # - CARTO marketplace: carto_spatial_features_usa_h3_res_8.carto.derived_spatialfeatures_usa_h3res8_v1_yearly_v3
+      # - census_blockgroups (block group boundaries - created by bronze_census_ingestion job)
+      # - census_demographics (ACS data - created by bronze_census_ingestion job)
+      # - raw_pois (branded - from bronze_census_ingestion job)
+      # - osm_pois_raw (general categories - from bronze_census_ingestion job)
 
       # Queue configuration for serverless cost optimization
       queue:
@@ -56,20 +56,19 @@ resources:
           environment_key: "Serverless"
           timeout_seconds: 3600
 
-        # Clean H3 features with derived columns (includes CARTO ingestion)
-        # Reads: CARTO marketplace + bronze.census_states (no silver dependencies)
-        - task_key: "clean_h3_features"
+        # H3 feature engineering from Census + OSM (replaces CARTO dependency)
+        # Reads: bronze.census_blockgroups, bronze.census_demographics, bronze.osm_pois_raw, bronze.census_states
+        - task_key: "create_h3_features"
           notebook_task:
-            notebook_path: ../transformations/02_silver/clean_h3_features.ipynb
+            notebook_path: ../transformations/02_silver/create_h3_features.ipynb
             base_parameters:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               silver_schema: "${var.silver_schema}"
-              carto_table: "${var.carto_table}"
               state_filter: "${var.state_filter}"
 
           environment_key: "Serverless"
-          timeout_seconds: 1800
+          timeout_seconds: 3600
 
         # Generate LCE store isochrones (Valhalla)
         # Reads: bronze.current_stores_raw (no silver dependencies)
@@ -108,7 +107,7 @@ resources:
         # Note: Uses expansion_state (default: MA), not the full training state_filter
         - task_key: "create_whitespace_locations"
           depends_on:
-            - task_key: "clean_h3_features"
+            - task_key: "create_h3_features"
           notebook_task:
             notebook_path: ../transformations/02_silver/create_whitespace_locations.ipynb
             base_parameters:
