@@ -34,6 +34,7 @@ resources:
             dependencies:
               - "pyyaml"
               - "pygris"
+              - "osmium"  # For OSM PBF parsing
 
       tasks:
         # Current stores ingestion with sales data
@@ -64,6 +65,7 @@ resources:
           timeout_seconds: 3600
 
         # POI ingestion (Overpass API - queries OSM for partner/competitor brands)
+        # Only queries expansion_state (MA) since branded POIs are for candidate mapping
         - task_key: "ingest_pois"
           notebook_task:
             notebook_path: ../transformations/01_bronze/ingest_pois.ipynb
@@ -71,6 +73,7 @@ resources:
               catalog: "${var.catalog}"
               bronze_schema: "${var.bronze_schema}"
               config_path: "${workspace.file_path}/resources/configs/poi_config.yml"
+              expansion_state: "${var.expansion_state}"
 
           environment_key: "Serverless"
           timeout_seconds: 300

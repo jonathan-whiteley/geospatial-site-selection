@@ -12,7 +12,6 @@ brands:
   partner_brands:
     - "Walmart"
     - "Walmart Supercenter"
-    - "Walmart Neighborhood Market"
     - "Speedway"
     - "7-Eleven"
     - "Shaw's"
@@ -22,7 +21,7 @@ brands:
   competitor_brands:
     - "Pizza Hut"
     - "Domino's"
-    - "Dominos"
+    - "Dominos's Pizza"
     - "Papa John's"
     - "Papa Johns"
 
