@@ -1,12 +1,12 @@
 bundle:
   name: geospatial-site-selection
 
-# # Bundle-level permissions - applies to all resources (jobs, schemas, etc.)
-# permissions:
-#   - level: CAN_MANAGE
-#     group_name: lce-ai-strategy-guest
-#   - level: CAN_MANAGE
-#     group_name: lce-ai-strategy
+# Bundle-level permissions - applies to all resources (jobs, schemas, etc.)
+permissions:
+  - level: CAN_MANAGE
+    group_name: lce-ai-strategy-guest
+  - level: CAN_MANAGE
+    group_name: lce-ai-strategy
 
 
 include:
