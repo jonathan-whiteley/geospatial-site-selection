@@ -115,6 +115,23 @@ async def get_competitors():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/customers")
+async def get_customer_locations():
+    """
+    Get customer device locations.
+
+    Returns:
+        List of customer locations with device ID and home store
+    """
+    try:
+        service = get_data_service()
+        return service.load_customers()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/network")
 async def get_full_network():
     """

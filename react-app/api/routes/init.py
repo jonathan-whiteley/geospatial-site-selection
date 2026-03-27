@@ -42,7 +42,7 @@ async def get_initial_data():
 
         # Run all queries in parallel using ThreadPoolExecutor
         results = {}
-        with ThreadPoolExecutor(max_workers=6) as executor:
+        with ThreadPoolExecutor(max_workers=7) as executor:
             futures = {
                 executor.submit(service.load_partner_data): 'partner_data',
                 executor.submit(service.load_stores): 'stores',
@@ -50,6 +50,7 @@ async def get_initial_data():
                 executor.submit(service.load_expansion_candidates): 'candidates',
                 executor.submit(service.load_isochrones): 'isochrones',
                 executor.submit(service.load_ma_boundary): 'ma_boundary',
+                executor.submit(service.load_customers): 'customer_locations',
             }
 
             for future in as_completed(futures):
@@ -68,6 +69,7 @@ async def get_initial_data():
         candidates = results.get('candidates', [])
         isochrones = results.get('isochrones', [])
         ma_boundary = results.get('ma_boundary')
+        customer_locations = results.get('customer_locations', [])
 
         query_time = time.time() - start_time
         print(f"All queries completed in {query_time:.2f}s")
@@ -87,7 +89,8 @@ async def get_initial_data():
         }
 
         print(f"Loaded: {len(stores)} stores, {len(candidates)} candidates, "
-              f"{len(partner_data.get('stores', []))} partners, {len(competitors)} competitors")
+              f"{len(partner_data.get('stores', []))} partners, {len(competitors)} competitors, "
+              f"{len(customer_locations)} customer locations")
         print("=== INITIAL DATA LOAD COMPLETE ===\n")
 
         return {
@@ -99,6 +102,7 @@ async def get_initial_data():
                 'partner_stores': partner_data.get('stores', []),
                 'competitors': competitors,
                 'ma_boundary': ma_boundary,
+                'customer_locations': customer_locations,
                 # Backward compatibility
                 'convenience_isochrones': partner_data.get('isochrones', []),
                 'convenience_stores': partner_data.get('stores', []),
