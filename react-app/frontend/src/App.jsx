@@ -325,6 +325,7 @@ function App() {
         onStoreClick={selectStore}
         onBoundsChange={updateMapBounds}
         partnerBrandFilters={partnerBrandFilters}
+        customerLocations={networkData.customerLocations}
       />
 
       <DetailPanel
