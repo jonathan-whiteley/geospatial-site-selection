@@ -351,6 +351,12 @@ export function MapLayersSection({ layers, onToggle, partnerBrandFilters, onTogg
               onChange={() => onToggle('currentStores')}
             />
             <LayerToggle
+              icon={<Circle className="w-4 h-4 text-amber-500" style={{ fill: '#f59e0b', strokeWidth: 0 }} />}
+              label="Customer Locations"
+              checked={layers.customerLocations}
+              onChange={() => onToggle('customerLocations')}
+            />
+            <LayerToggle
               icon={<MapPin className="w-4 h-4 text-red-500" />}
               label="Expansion Candidates"
               checked={layers.candidates}
