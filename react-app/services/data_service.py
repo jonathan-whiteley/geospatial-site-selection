@@ -170,6 +170,25 @@ class DataService:
             print(f"ERROR loading viz_competitors: {str(e)}")
             return []
 
+    def load_customers(self) -> List[Dict[str, Any]]:
+        """Load customer device locations."""
+        gold = self.settings.gold_table_prefix
+        try:
+            start = time.time()
+            print(f"Loading viz_ma_pins...")
+            customers_df = self.db.execute_query(f"""
+                SELECT DeviceID as device_id, Latitude as latitude,
+                       Longitude as longitude, Store as store
+                FROM {gold}.viz_ma_pins
+            """)
+            result = customers_df.to_dict('records') if not customers_df.empty else []
+            elapsed = time.time() - start
+            print(f"Loaded {len(result)} customer locations in {elapsed:.2f}s")
+            return sanitize_for_json(result)
+        except Exception as e:
+            print(f"ERROR loading viz_ma_pins: {str(e)}")
+            return []
+
     def load_ma_boundary(self) -> Optional[Dict[str, Any]]:
         """Load Massachusetts state boundary."""
         bronze = self.settings.bronze_table_prefix

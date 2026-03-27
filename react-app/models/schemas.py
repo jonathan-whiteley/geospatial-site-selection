@@ -59,6 +59,14 @@ class Competitor(BaseModel):
     poi_subcategory: Optional[str] = None
 
 
+class CustomerLocation(BaseModel):
+    """Customer device location."""
+    device_id: str
+    latitude: float
+    longitude: float
+    store: str
+
+
 # ============================================
 # Expansion Models
 # ============================================
