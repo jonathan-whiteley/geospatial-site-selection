@@ -358,10 +358,10 @@ function CustomerLocationMarkers({ customers, visible }) {
           pane="markers"
           radius={4}
           pathOptions={{
-            fillColor: '#22c55e',
-            color: '#22c55e',
+            fillColor: '#f97316',
+            color: '#f97316',
             weight: 0,
-            fillOpacity: 0.5,
+            fillOpacity: 0.75,
           }}
         >
           <Popup className="modern-popup" autoPan={false}>
