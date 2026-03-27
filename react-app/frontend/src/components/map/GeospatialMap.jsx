@@ -344,7 +344,7 @@ function CompetitorMarkers({ competitors, visible }) {
 }
 
 /**
- * Customer location markers (green with black outline)
+ * Customer location markers (green haze)
  */
 function CustomerLocationMarkers({ customers, visible }) {
   if (!visible || !customers || customers.length === 0) return null
@@ -359,9 +359,9 @@ function CustomerLocationMarkers({ customers, visible }) {
           radius={4}
           pathOptions={{
             fillColor: '#22c55e',
-            color: '#1a1a1a',
-            weight: 1.5,
-            fillOpacity: 0.85,
+            color: '#22c55e',
+            weight: 0,
+            fillOpacity: 0.5,
           }}
         >
           <Popup className="modern-popup" autoPan={false}>
