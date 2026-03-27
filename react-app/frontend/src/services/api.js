@@ -63,6 +63,11 @@ export async function getCompetitors() {
   return response.data
 }
 
+export async function getCustomerLocations() {
+  const response = await api.get('/stores/customers')
+  return response.data
+}
+
 export async function getFullNetwork() {
   const response = await api.get('/stores/network')
   return response.data

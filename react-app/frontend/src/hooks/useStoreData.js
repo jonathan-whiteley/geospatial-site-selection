@@ -16,6 +16,7 @@ export function useStoreData() {
     partnerIsochrones: [],
     partnerStores: [],
     competitors: [],
+    customerLocations: [],
     maBoundary: null,
     // Backward compatibility aliases (deprecated)
     convenienceIsochrones: [],
@@ -64,6 +65,7 @@ export function useStoreData() {
           partnerIsochrones,
           partnerStores,
           competitors: network.competitors || [],
+          customerLocations: network.customer_locations || [],
           maBoundary: network.ma_boundary || null,
           // Backward compatibility aliases
           convenienceIsochrones: partnerIsochrones,
@@ -120,6 +122,7 @@ export function useStoreData() {
         partnerIsochrones,
         partnerStores,
         competitors: network.competitors || [],
+        customerLocations: network.customer_locations || [],
         maBoundary: network.ma_boundary || null,
         convenienceIsochrones: partnerIsochrones,
         convenienceStores: partnerStores,
