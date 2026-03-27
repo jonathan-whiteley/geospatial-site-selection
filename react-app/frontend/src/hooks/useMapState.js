@@ -39,7 +39,7 @@ const MODE_LAYERS = {
   expansion: {
     currentStores: true,
     customerLocations: false,
-    candidates: true,
+    candidates: false,
     candidateIsochrones: false,
     partners: false,
     competitors: false,
