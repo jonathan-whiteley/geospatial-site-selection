@@ -12,6 +12,7 @@ env:
     value: geo_silver
   - name: DATABRICKS_BRONZE_SCHEMA
     value: geo_bronze
+  - name: DATABRICKS_CUSTOMER_PINS_TABLE
+    value: ioc_sandbox.ai_strategy.gis_customer_location_data
   - name: DATABRICKS_AGENT_ENDPOINT
     value: mas-7d62eac6-endpoint
-

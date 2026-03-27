@@ -21,6 +21,9 @@ class Settings:
     databricks_silver_schema: str = "geo_silver"
     databricks_bronze_schema: str = "geo_bronze"
 
+    # External table references (full 3-part names)
+    customer_pins_table: str = ""
+
     def __post_init__(self):
         """Load values from environment variables."""
         self.databricks_server_hostname = os.getenv(
@@ -39,6 +42,8 @@ class Settings:
         self.databricks_gold_schema = os.getenv("DATABRICKS_GOLD_SCHEMA", "geo_gold")
         self.databricks_silver_schema = os.getenv("DATABRICKS_SILVER_SCHEMA", "geo_silver")
         self.databricks_bronze_schema = os.getenv("DATABRICKS_BRONZE_SCHEMA", "geo_bronze")
+
+        self.customer_pins_table = os.getenv("DATABRICKS_CUSTOMER_PINS_TABLE", "")
 
     @property
     def is_service_principal(self) -> bool:

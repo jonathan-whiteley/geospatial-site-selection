@@ -172,21 +172,24 @@ class DataService:
 
     def load_customers(self) -> List[Dict[str, Any]]:
         """Load customer device locations."""
-        gold = self.settings.gold_table_prefix
+        table = self.settings.customer_pins_table
+        if not table:
+            print("DATABRICKS_CUSTOMER_PINS_TABLE not configured, skipping customer locations")
+            return []
         try:
             start = time.time()
-            print(f"Loading viz_ma_pins...")
+            print(f"Loading customer pins from {table}...")
             customers_df = self.db.execute_query(f"""
                 SELECT DeviceID as device_id, Latitude as latitude,
                        Longitude as longitude, Store as store
-                FROM {gold}.viz_ma_pins
+                FROM {table}
             """)
             result = customers_df.to_dict('records') if not customers_df.empty else []
             elapsed = time.time() - start
             print(f"Loaded {len(result)} customer locations in {elapsed:.2f}s")
             return sanitize_for_json(result)
         except Exception as e:
-            print(f"ERROR loading viz_ma_pins: {str(e)}")
+            print(f"ERROR loading customer pins from {table}: {str(e)}")
             return []
 
     def load_ma_boundary(self) -> Optional[Dict[str, Any]]:

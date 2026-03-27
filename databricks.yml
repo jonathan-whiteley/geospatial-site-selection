@@ -122,4 +122,3 @@ variables:
   acs_year:
     description: "ACS 5-Year survey ending year"
     default: "2023"
-
