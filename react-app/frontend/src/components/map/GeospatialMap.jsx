@@ -363,18 +363,8 @@ function CustomerLocationMarkers({ customers, visible }) {
             weight: 0,
             fillOpacity: 0.75,
           }}
-        >
-          <Popup className="modern-popup" autoPan={false}>
-            <div className="min-w-[150px] pr-4">
-              <div className="font-semibold text-gray-900 text-xs">
-                Device: {customer.device_id?.slice(0, 8)}...
-              </div>
-              <div className="text-xs text-gray-600 mt-1">
-                Home Store: {customer.store}
-              </div>
-            </div>
-          </Popup>
-        </CircleMarker>
+          interactive={false}
+        />
       ))}
     </>
   )

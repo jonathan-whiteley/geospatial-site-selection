@@ -5,15 +5,16 @@ import { formatSales } from '../../lib/utils'
 /**
  * Legend item component
  */
-function LegendItem({ color, label, icon: Icon }) {
+function LegendItem({ color, label, icon: Icon, haze }) {
   return (
     <div className="flex items-center gap-2.5 text-sm">
       <span
-        className="w-3.5 h-3.5 rounded-full shadow-sm flex-shrink-0"
+        className="w-3.5 h-3.5 rounded-full flex-shrink-0"
         style={{
           backgroundColor: color,
-          border: '2px solid white',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+          border: haze ? 'none' : '2px solid white',
+          opacity: haze ? 0.75 : 1,
+          boxShadow: haze ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
         }}
       />
       {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
@@ -46,9 +47,14 @@ function GradientLegendItem({ label }) {
 export function MapLegend() {
   const items = [
     {
-      label: 'LCE Stores',
+      label: 'Current Stores',
       color: '#10b981',
       icon: Building2,
+    },
+    {
+      label: 'Customer Locations',
+      color: '#f97316',
+      haze: true,
     },
     {
       label: 'Expansion Candidates',
@@ -83,6 +89,7 @@ export function MapLegend() {
               color={item.color}
               label={item.label}
               icon={item.icon}
+              haze={item.haze}
             />
           )
         )}
