@@ -5,6 +5,7 @@ import { useState, useCallback } from 'react'
  */
 const DEFAULT_LAYERS = {
   currentStores: true,
+  customerLocations: false,
   candidates: false,
   candidateIsochrones: false,
   partners: false,
@@ -28,6 +29,7 @@ const DEFAULT_PARTNER_BRAND_FILTERS = {
 const MODE_LAYERS = {
   current: {
     currentStores: true,
+    customerLocations: false,
     candidates: false,
     candidateIsochrones: false,
     partners: false,
@@ -36,6 +38,7 @@ const MODE_LAYERS = {
   },
   expansion: {
     currentStores: true,
+    customerLocations: false,
     candidates: true,
     candidateIsochrones: false,
     partners: false,
