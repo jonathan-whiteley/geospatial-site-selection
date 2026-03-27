@@ -344,6 +344,38 @@ function CompetitorMarkers({ competitors, visible }) {
 }
 
 /**
+ * Customer location markers (amber haze)
+ */
+function CustomerLocationMarkers({ customers, visible }) {
+  if (!visible || !customers || customers.length === 0) return null
+
+  return (
+    <>
+      {customers.map((customer, idx) => (
+        <CircleMarker
+          key={`cust-${idx}`}
+          center={[customer.latitude, customer.longitude]}
+          pane="markers"
+          radius={4}
+          pathOptions={{
+            fillColor: '#f59e0b',
+            color: '#f59e0b',
+            weight: 0,
+            fillOpacity: 0.5,
+          }}
+        >
+          <Popup className="modern-popup" autoPan={false}>
+            <div className="min-w-[120px]">
+              <div className="font-semibold text-gray-900">Home Store: {customer.store}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
+    </>
+  )
+}
+
+/**
  * Main geospatial map component
  */
 export function GeospatialMap({
@@ -354,6 +386,7 @@ export function GeospatialMap({
   onStoreClick,
   onBoundsChange,
   partnerBrandFilters,
+  customerLocations,
 }) {
   // Get current stores (from candidates' current_stores or network stores)
   const currentStores = useMemo(() => {
@@ -418,6 +451,12 @@ export function GeospatialMap({
           stores={currentStores}
           visible={layers.currentStores}
           onStoreClick={onStoreClick}
+        />
+
+        {/* Customer locations */}
+        <CustomerLocationMarkers
+          customers={customerLocations}
+          visible={layers.customerLocations}
         />
 
         {/* Candidate markers */}
