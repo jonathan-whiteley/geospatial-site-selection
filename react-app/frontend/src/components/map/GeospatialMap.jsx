@@ -344,7 +344,7 @@ function CompetitorMarkers({ competitors, visible }) {
 }
 
 /**
- * Customer location markers (amber haze)
+ * Customer location markers (green with black outline)
  */
 function CustomerLocationMarkers({ customers, visible }) {
   if (!visible || !customers || customers.length === 0) return null
@@ -358,15 +358,20 @@ function CustomerLocationMarkers({ customers, visible }) {
           pane="markers"
           radius={4}
           pathOptions={{
-            fillColor: '#f59e0b',
-            color: '#f59e0b',
-            weight: 0,
-            fillOpacity: 0.5,
+            fillColor: '#22c55e',
+            color: '#1a1a1a',
+            weight: 1.5,
+            fillOpacity: 0.85,
           }}
         >
           <Popup className="modern-popup" autoPan={false}>
-            <div className="min-w-[120px]">
-              <div className="font-semibold text-gray-900">Home Store: {customer.store}</div>
+            <div className="min-w-[150px] pr-4">
+              <div className="font-semibold text-gray-900 text-xs">
+                Device: {customer.device_id?.slice(0, 8)}...
+              </div>
+              <div className="text-xs text-gray-600 mt-1">
+                Home Store: {customer.store}
+              </div>
             </div>
           </Popup>
         </CircleMarker>
