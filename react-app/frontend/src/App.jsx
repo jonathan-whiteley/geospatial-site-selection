@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
 import { AppLayout, AppHeader } from './components/layout/AppLayout'
 import {
   Sidebar,
@@ -203,8 +203,15 @@ function App() {
   // Total current stores count for header
   const totalStores = networkData?.stores?.length || 0
 
-  // Determine which accordion sections to open by default (filters/optimization collapsed)
-  const defaultAccordionValues = ['layers', 'metrics']
+  // Controlled accordion state — metrics opens when candidates layer is on
+  const [openSections, setOpenSections] = useState(['layers'])
+
+  // Auto-expand metrics when candidates layer is toggled on
+  useEffect(() => {
+    if (layers.candidates && !openSections.includes('metrics')) {
+      setOpenSections(prev => [...prev, 'metrics'])
+    }
+  }, [layers.candidates])
 
   // Show loading state
   if (dataLoading) {
@@ -262,7 +269,8 @@ function App() {
             <div className="flex-1 overflow-y-auto">
               <Accordion
                 type="multiple"
-                defaultValue={defaultAccordionValues}
+                value={openSections}
+                onValueChange={setOpenSections}
                 className="w-full"
               >
                 {/* Map Layers */}
