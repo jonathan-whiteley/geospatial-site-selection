@@ -61,7 +61,7 @@ export function MapLegend() {
     {
       label: 'Customer Locations',
       color: '#374151',
-      crosshair: true,
+      haze: true,
     },
     {
       label: 'Expansion Candidates',

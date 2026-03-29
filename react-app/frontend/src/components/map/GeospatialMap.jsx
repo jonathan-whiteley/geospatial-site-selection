@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react'
-import { MapContainer, TileLayer, useMap, Pane, GeoJSON, CircleMarker, Circle, Popup, Marker } from 'react-leaflet'
+import { MapContainer, TileLayer, useMap, Pane, GeoJSON, CircleMarker, Circle, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import MarkerClusterGroup from './MarkerClusterGroup'
 import { MapBoundsTracker } from './MapBoundsTracker'
@@ -344,17 +344,7 @@ function CompetitorMarkers({ competitors, visible }) {
 }
 
 /**
- * Crosshair icon for customer locations
- */
-const crosshairIcon = L.divIcon({
-  className: '',
-  html: '<svg width="10" height="10" viewBox="-5 -5 10 10"><line x1="-4" y1="0" x2="4" y2="0" stroke="#374151" stroke-width="1.5" opacity="0.7"/><line x1="0" y1="-4" x2="0" y2="4" stroke="#374151" stroke-width="1.5" opacity="0.7"/></svg>',
-  iconSize: [10, 10],
-  iconAnchor: [5, 5],
-})
-
-/**
- * Customer location markers (crosshair marks)
+ * Customer location markers (charcoal dots)
  */
 function CustomerLocationMarkers({ customers, visible }) {
   if (!visible || !customers || customers.length === 0) return null
@@ -362,11 +352,17 @@ function CustomerLocationMarkers({ customers, visible }) {
   return (
     <>
       {customers.map((customer, idx) => (
-        <Marker
+        <CircleMarker
           key={`cust-${idx}`}
-          position={[customer.latitude, customer.longitude]}
+          center={[customer.latitude, customer.longitude]}
           pane="markers"
-          icon={crosshairIcon}
+          radius={3.5}
+          pathOptions={{
+            fillColor: '#374151',
+            color: '#374151',
+            weight: 0,
+            fillOpacity: 0.75,
+          }}
           interactive={false}
         />
       ))}
