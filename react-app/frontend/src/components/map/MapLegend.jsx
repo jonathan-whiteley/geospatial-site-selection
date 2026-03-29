@@ -1,5 +1,5 @@
 import React from 'react'
-import { Building2, MapPin, Store, Building } from 'lucide-react'
+import { Building2, MapPin, Store, Building, Users } from 'lucide-react'
 import { formatSales } from '../../lib/utils'
 
 /**
@@ -64,6 +64,7 @@ export function MapLegend() {
       label: 'Customer Locations',
       color: '#374151',
       haze: true,
+      icon: Users,
     },
     {
       label: 'Expansion Candidates',
