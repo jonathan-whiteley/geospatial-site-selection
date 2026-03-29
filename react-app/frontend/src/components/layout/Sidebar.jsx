@@ -362,12 +362,23 @@ export function MapLayersSection({ layers, onToggle, partnerBrandFilters, onTogg
               checked={layers.candidates}
               onChange={() => onToggle('candidates')}
             />
-            <LayerToggle
-              icon={<Circle className="w-4 h-4 text-red-400" />}
-              label="Candidate Trade Areas"
-              checked={layers.candidateIsochrones}
-              onChange={() => onToggle('candidateIsochrones')}
-            />
+
+            {/* Nested trade areas toggle - only show when candidates toggle is on */}
+            {layers.candidates && (
+              <div className="ml-6 pl-3 border-l-2 border-red-200 space-y-1.5 mt-2 mb-2">
+                <label
+                  className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 p-1.5 rounded transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={layers.candidateIsochrones}
+                    onChange={() => onToggle('candidateIsochrones')}
+                    className="w-3.5 h-3.5 rounded border-gray-300 text-red-500 focus:ring-red-500 cursor-pointer"
+                  />
+                  <span className="text-gray-600 text-xs">Trade Areas</span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Partners & Competition */}
