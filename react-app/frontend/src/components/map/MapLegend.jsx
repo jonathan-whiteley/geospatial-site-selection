@@ -15,12 +15,14 @@ function LegendItem({ color, label, icon: Icon, haze, crosshair }) {
         </svg>
       ) : (
         <span
-          className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+          className={`${haze ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} rounded-full flex-shrink-0`}
           style={{
             backgroundColor: color,
             border: haze ? 'none' : '2px solid white',
             opacity: haze ? 0.75 : 1,
             boxShadow: haze ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
+            marginLeft: haze ? '2px' : '0',
+            marginRight: haze ? '2px' : '0',
           }}
         />
       )}
