@@ -183,6 +183,8 @@ class DataService:
                 SELECT DeviceID as device_id, Latitude as latitude,
                        Longitude as longitude, Store as store
                 FROM {table}
+                WHERE Latitude BETWEEN 41.0 AND 43.0
+                  AND Longitude BETWEEN -73.5 AND -69.9
             """)
             result = customers_df.to_dict('records') if not customers_df.empty else []
             elapsed = time.time() - start
