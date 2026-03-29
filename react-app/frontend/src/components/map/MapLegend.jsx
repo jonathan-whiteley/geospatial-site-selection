@@ -5,18 +5,25 @@ import { formatSales } from '../../lib/utils'
 /**
  * Legend item component
  */
-function LegendItem({ color, label, icon: Icon, haze }) {
+function LegendItem({ color, label, icon: Icon, haze, crosshair }) {
   return (
     <div className="flex items-center gap-2.5 text-sm">
-      <span
-        className="w-3.5 h-3.5 rounded-full flex-shrink-0"
-        style={{
-          backgroundColor: color,
-          border: haze ? 'none' : '2px solid white',
-          opacity: haze ? 0.75 : 1,
-          boxShadow: haze ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
-        }}
-      />
+      {crosshair ? (
+        <svg width="14" height="14" viewBox="-7 -7 14 14" className="flex-shrink-0">
+          <line x1="-5" y1="0" x2="5" y2="0" stroke={color} strokeWidth="1.5" opacity="0.7"/>
+          <line x1="0" y1="-5" x2="0" y2="5" stroke={color} strokeWidth="1.5" opacity="0.7"/>
+        </svg>
+      ) : (
+        <span
+          className="w-3.5 h-3.5 rounded-full flex-shrink-0"
+          style={{
+            backgroundColor: color,
+            border: haze ? 'none' : '2px solid white',
+            opacity: haze ? 0.75 : 1,
+            boxShadow: haze ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
+          }}
+        />
+      )}
       {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
       <span className="text-gray-600">{label}</span>
     </div>
@@ -53,8 +60,8 @@ export function MapLegend() {
     },
     {
       label: 'Customer Locations',
-      color: '#f97316',
-      haze: true,
+      color: '#374151',
+      crosshair: true,
     },
     {
       label: 'Expansion Candidates',
@@ -90,6 +97,7 @@ export function MapLegend() {
               label={item.label}
               icon={item.icon}
               haze={item.haze}
+              crosshair={item.crosshair}
             />
           )
         )}
