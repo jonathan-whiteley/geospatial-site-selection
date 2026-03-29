@@ -23,6 +23,10 @@ function MapPanes() {
       map.createPane('isochrones')
       map.getPane('isochrones').style.zIndex = 400
     }
+    if (!map.getPane('customerMarkers')) {
+      map.createPane('customerMarkers')
+      map.getPane('customerMarkers').style.zIndex = 420
+    }
     if (!map.getPane('markers')) {
       map.createPane('markers')
       map.getPane('markers').style.zIndex = 450
@@ -355,8 +359,8 @@ function CustomerLocationMarkers({ customers, visible }) {
         <CircleMarker
           key={`cust-${idx}`}
           center={[customer.latitude, customer.longitude]}
-          pane="markers"
-          radius={3.5}
+          pane="customerMarkers"
+          radius={2.5}
           pathOptions={{
             fillColor: '#374151',
             color: '#374151',
