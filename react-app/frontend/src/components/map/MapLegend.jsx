@@ -7,26 +7,26 @@ import { formatSales } from '../../lib/utils'
  */
 function LegendItem({ color, label, icon: Icon, haze, crosshair }) {
   return (
-    <div className="flex items-center gap-2.5 text-sm">
+    <div className="flex items-center gap-1.5 text-xs">
       {crosshair ? (
-        <svg width="14" height="14" viewBox="-7 -7 14 14" className="flex-shrink-0">
-          <line x1="-5" y1="0" x2="5" y2="0" stroke={color} strokeWidth="1.5" opacity="0.7"/>
-          <line x1="0" y1="-5" x2="0" y2="5" stroke={color} strokeWidth="1.5" opacity="0.7"/>
+        <svg width="10" height="10" viewBox="-5 -5 10 10" className="flex-shrink-0">
+          <line x1="-4" y1="0" x2="4" y2="0" stroke={color} strokeWidth="1.5" opacity="0.7"/>
+          <line x1="0" y1="-4" x2="0" y2="4" stroke={color} strokeWidth="1.5" opacity="0.7"/>
         </svg>
       ) : (
         <span
-          className={`${haze ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} rounded-full flex-shrink-0`}
+          className={`${haze ? 'w-2 h-2' : 'w-2.5 h-2.5'} rounded-full flex-shrink-0`}
           style={{
             backgroundColor: color,
-            border: haze ? 'none' : '2px solid white',
+            border: haze ? 'none' : '1.5px solid white',
             opacity: haze ? 0.75 : 1,
             boxShadow: haze ? 'none' : '0 1px 2px rgba(0,0,0,0.1)',
-            marginLeft: haze ? '2px' : '0',
-            marginRight: haze ? '2px' : '0',
+            marginLeft: haze ? '1px' : '0',
+            marginRight: haze ? '1px' : '0',
           }}
         />
       )}
-      {Icon && <Icon className="w-3.5 h-3.5 text-gray-400" />}
+      {Icon && <Icon className="w-3 h-3 text-gray-400" />}
       <span className="text-gray-600">{label}</span>
     </div>
   )
@@ -83,12 +83,12 @@ export function MapLegend() {
   ]
 
   return (
-    <div className="absolute top-4 right-4 glass-panel rounded-lg shadow-glass p-4 z-[500] min-w-[180px]">
-      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-        <span className="w-1 h-4 bg-brand-orange rounded-full" />
+    <div className="absolute top-4 right-4 glass-panel rounded-md shadow-glass p-2.5 z-[500]">
+      <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+        <span className="w-0.5 h-3 bg-brand-orange rounded-full" />
         Map Layers
       </h4>
-      <div className="space-y-2.5">
+      <div className="space-y-1.5">
         {items.map((item, idx) =>
           item.gradient ? (
             <GradientLegendItem key={idx} label={item.label} />
