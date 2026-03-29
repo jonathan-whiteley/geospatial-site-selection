@@ -49,11 +49,28 @@ class DataService:
     def __init__(self):
         self.settings = get_settings()
         self.db = get_db()
+        self._cache = {}
+
+    def _cached(self, key, loader):
+        """Return cached result or call loader and cache it."""
+        if key not in self._cache:
+            self._cache[key] = loader()
+        else:
+            print(f"  ⚡ {key} served from cache")
+        return self._cache[key]
+
+    def clear_cache(self):
+        """Clear all cached data."""
+        self._cache.clear()
+        print("Data cache cleared")
 
     # ========== Individual Loaders (Phase 2.1: Split N+1 queries) ==========
 
     def load_stores(self) -> List[Dict[str, Any]]:
-        """Load existing store locations (MA only)."""
+        """Load existing store locations (MA only). Cached."""
+        return self._cached('stores', self._load_stores)
+
+    def _load_stores(self) -> List[Dict[str, Any]]:
         gold = self.settings.gold_table_prefix
         try:
             start = time.time()
@@ -75,7 +92,10 @@ class DataService:
             return []
 
     def load_isochrones(self) -> List[Dict[str, Any]]:
-        """Load LCE store trade area isochrones (MA only)."""
+        """Load LCE store trade area isochrones (MA only). Cached."""
+        return self._cached('isochrones', self._load_isochrones)
+
+    def _load_isochrones(self) -> List[Dict[str, Any]]:
         gold = self.settings.gold_table_prefix
         silver = self.settings.silver_table_prefix
         try:
@@ -97,8 +117,11 @@ class DataService:
             return []
 
     def load_partner_data(self) -> Dict[str, Any]:
+        """Load partner store data. Cached."""
+        return self._cached('partner_data', self._load_partner_data)
+
+    def _load_partner_data(self) -> Dict[str, Any]:
         """
-        Load partner (convenience) store data with a single query.
         Phase 2.2: Combined duplicate viz_partners queries into one.
         Returns both isochrones and store location data.
         """
@@ -153,7 +176,10 @@ class DataService:
             return {'isochrones': [], 'stores': []}
 
     def load_competitors(self) -> List[Dict[str, Any]]:
-        """Load competitor store locations."""
+        """Load competitor store locations. Cached."""
+        return self._cached('competitors', self._load_competitors)
+
+    def _load_competitors(self) -> List[Dict[str, Any]]:
         gold = self.settings.gold_table_prefix
         try:
             start = time.time()
@@ -171,7 +197,10 @@ class DataService:
             return []
 
     def load_customers(self) -> List[Dict[str, Any]]:
-        """Load customer device locations."""
+        """Load customer device locations. Cached."""
+        return self._cached('customers', self._load_customers)
+
+    def _load_customers(self) -> List[Dict[str, Any]]:
         table = self.settings.customer_pins_table
         if not table:
             print("DATABRICKS_CUSTOMER_PINS_TABLE not configured, skipping customer locations")
@@ -195,7 +224,10 @@ class DataService:
             return []
 
     def load_ma_boundary(self) -> Optional[Dict[str, Any]]:
-        """Load Massachusetts state boundary."""
+        """Load Massachusetts state boundary. Cached."""
+        return self._cached('ma_boundary', self._load_ma_boundary)
+
+    def _load_ma_boundary(self) -> Optional[Dict[str, Any]]:
         bronze = self.settings.bronze_table_prefix
         try:
             print(f"Loading MA boundary...")
@@ -243,10 +275,21 @@ class DataService:
         max_population: Optional[float] = None,
         fulfillment_strategy: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Load expansion candidate locations with optional SQL-level filtering.
-        Phase 2.4: Push filters to SQL WHERE clauses for better performance.
-        """
+        """Load expansion candidates. Cached when called without filters."""
+        has_filters = any(v is not None for v in [min_sales, max_sales, min_population, max_population, fulfillment_strategy])
+        if not has_filters:
+            return self._cached('candidates', self._load_expansion_candidates)
+        return self._load_expansion_candidates(min_sales, max_sales, min_population, max_population, fulfillment_strategy)
+
+    def _load_expansion_candidates(
+        self,
+        min_sales: Optional[float] = None,
+        max_sales: Optional[float] = None,
+        min_population: Optional[float] = None,
+        max_population: Optional[float] = None,
+        fulfillment_strategy: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Phase 2.4: Push filters to SQL WHERE clauses for better performance."""
         gold = self.settings.gold_table_prefix
 
         # Build WHERE clause dynamically
@@ -310,7 +353,10 @@ class DataService:
         return sanitize_for_json(result)
 
     def load_optimization_results(self) -> List[Dict[str, Any]]:
-        """Load pre-computed optimization results for O(1) lookup."""
+        """Load pre-computed optimization results. Cached."""
+        return self._cached('optimization_results', self._load_optimization_results)
+
+    def _load_optimization_results(self) -> List[Dict[str, Any]]:
         gold = self.settings.gold_table_prefix
 
         try:
@@ -328,6 +374,10 @@ class DataService:
             return []
 
     def load_network_metrics(self) -> Dict[str, Any]:
+        """Load pre-computed network metrics. Cached."""
+        return self._cached('network_metrics', self._load_network_metrics)
+
+    def _load_network_metrics(self) -> Dict[str, Any]:
         """Load pre-computed network metrics (singleton row)."""
         gold = self.settings.gold_table_prefix
 
