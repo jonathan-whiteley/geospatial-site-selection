@@ -34,6 +34,13 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     # Uses variable defaults from bundle-level variables section
 
+  # PRG (Panda Restaurant Group) target - parallel to production, isolated path
+  prg:
+    mode: production
+    workspace:
+      host: https://fe-vm-jdub-vm-serverless.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+
 variables:
 
   # ============================================================================
