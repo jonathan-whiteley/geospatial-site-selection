@@ -47,7 +47,7 @@ export function AppHeader({ logoSrc, totalStores, stateName = 'Massachusetts' })
         )}
         <div>
           <h1 className="text-lg font-semibold text-gray-900">
-            Hunger Satisfaction <span className="text-brand-orange">Platform</span>
+            <span className="text-brand-orange">SiteIQ</span> - AI Site Selection Platform
           </h1>
           <p className="text-xs text-gray-500">
             AI-powered expansion insights
