@@ -7,11 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Little Caesars brand colors
+        // Panda Express brand colors
+        // Class names retain `orange` keys to avoid touching every component;
+        // the hex values are Panda Red. `brand-gold` is the accent.
         brand: {
-          orange: '#F06B38',
-          'orange-dark': '#d85f30',
-          'orange-light': '#ff8c5a',
+          orange: '#C8102E',
+          'orange-dark': '#9F0C24',
+          'orange-light': '#E8344E',
+          red: '#C8102E',
+          'red-dark': '#9F0C24',
+          'red-light': '#E8344E',
+          gold: '#FFC72C',
+          'gold-dark': '#E0AC1F',
+          'gold-light': '#FFD75A',
         },
         // Map layer colors
         map: {

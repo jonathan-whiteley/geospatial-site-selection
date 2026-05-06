@@ -307,7 +307,7 @@ I can help your team achieve 5-min Hunger Satisfaction by answering questions on
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200/80 bg-gradient-to-br from-brand-orange via-orange-600 to-orange-700 text-white rounded-t-xl shadow-sm">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200/80 bg-gradient-to-br from-brand-orange via-red-700 to-red-800 text-white rounded-t-xl shadow-sm">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 bg-white/10 rounded-lg">
             <Sparkles className="w-4 h-4" />
@@ -343,7 +343,7 @@ I can help your team achieve 5-min Hunger Satisfaction by answering questions on
               className={cn(
                 'max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-sm',
                 message.type === 'user'
-                  ? 'bg-gradient-to-br from-brand-orange to-orange-600 text-white shadow-orange-200/40 shadow-md'
+                  ? 'bg-gradient-to-br from-brand-orange to-red-700 text-white shadow-red-200/40 shadow-md'
                   : message.status === 'error'
                   ? 'bg-red-50 border border-red-200/70 text-red-800 shadow-red-100/50'
                   : 'bg-white border border-gray-200/70 text-gray-800 shadow-gray-200/40'
@@ -357,7 +357,7 @@ I can help your team achieve 5-min Hunger Satisfaction by answering questions on
               <div
                 className={cn(
                   'text-[10px] mt-1.5 opacity-60',
-                  message.type === 'user' ? 'text-orange-100' : 'text-gray-500'
+                  message.type === 'user' ? 'text-red-100' : 'text-gray-500'
                 )}
               >
                 {message.timestamp.toLocaleTimeString([], {
@@ -434,7 +434,7 @@ I can help your team achieve 5-min Hunger Satisfaction by answering questions on
           <button
             onClick={() => sendMessage()}
             disabled={isLoading || !inputValue.trim() || !isAvailable}
-            className="p-2.5 bg-gradient-to-br from-brand-orange to-orange-600 text-white rounded-xl hover:shadow-md hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200 flex items-center justify-center"
+            className="p-2.5 bg-gradient-to-br from-brand-orange to-red-700 text-white rounded-xl hover:shadow-md hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 transition-all duration-200 flex items-center justify-center"
           >
             <Send className="w-4 h-4" />
           </button>

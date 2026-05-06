@@ -31,7 +31,7 @@ export function AppLayout({ children, sidebar, header, kpiBar }) {
 }
 
 /**
- * Application header with Little Caesars branding
+ * Application header with Panda Express branding
  */
 export function AppHeader({ logoSrc, totalStores, stateName = 'Massachusetts' }) {
   return (
@@ -41,7 +41,7 @@ export function AppHeader({ logoSrc, totalStores, stateName = 'Massachusetts' })
         {logoSrc && (
           <img
             src={logoSrc}
-            alt="Little Caesars"
+            alt="Panda Express"
             className="h-10"
           />
         )}

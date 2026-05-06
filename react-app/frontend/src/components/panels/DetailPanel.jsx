@@ -57,16 +57,16 @@ function PartnerStrategyCard({ storeData }) {
  */
 function NewBuildStrategyCard({ storeData }) {
   return (
-    <Card className="border-l-4 border-l-brand-orange bg-orange-50/50">
+    <Card className="border-l-4 border-l-brand-orange bg-red-50/50">
       <CardContent className="py-4">
         <div className="flex items-center gap-2 mb-3">
           <Building className="w-5 h-5 text-brand-orange" />
-          <span className="font-semibold text-orange-900">New Build Strategy</span>
+          <span className="font-semibold text-red-900">New Build Strategy</span>
         </div>
         <p className="text-sm text-gray-600 mb-3">
           {storeData.min_distance_to_existing
             ? `${storeData.min_distance_to_existing.toFixed(1)} miles`
-            : 'No LCE stores'
+            : 'No Panda Express stores'
           } to nearest existing location
         </p>
         <div className="bg-white/60 rounded-lg p-3 space-y-2 text-xs">

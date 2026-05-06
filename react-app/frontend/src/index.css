@@ -83,7 +83,7 @@ body {
   }
 
   .metric-bg-orange {
-    @apply bg-orange-50 border-l-4 border-l-brand-orange;
+    @apply bg-red-50 border-l-4 border-l-brand-orange;
   }
 
   .metric-bg-red {

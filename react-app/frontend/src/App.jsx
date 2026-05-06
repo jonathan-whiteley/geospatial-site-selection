@@ -20,7 +20,7 @@ import { filterByBounds } from './lib/utils'
 import { ChatInterface } from './components/chat/ChatInterface'
 
 // Logo path
-const LOGO_SRC = '/logo.png'
+const LOGO_SRC = '/panda_logo.svg'
 
 /**
  * Loading spinner component

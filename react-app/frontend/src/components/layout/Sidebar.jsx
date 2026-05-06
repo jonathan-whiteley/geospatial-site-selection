@@ -249,10 +249,10 @@ export function PartnershipRecommendationsSection({ partnerStores = [], candidat
     },
     orange: {
       border: 'border-l-brand-orange',
-      bg: 'bg-orange-50/50',
+      bg: 'bg-red-50/50',
       badge: 'bg-brand-orange',
       icon: 'text-brand-orange',
-      title: 'text-orange-900',
+      title: 'text-red-900',
     },
   }
 

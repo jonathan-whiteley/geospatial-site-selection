@@ -20,7 +20,7 @@ function MetricCard({
     blue: 'bg-blue-50 border-l-4 border-l-blue-500 border-y border-r border-gray-200',
     purple: 'bg-purple-50 border-l-4 border-l-purple-500 border-y border-r border-gray-200',
     amber: 'bg-amber-50 border-l-4 border-l-amber-500 border-y border-r border-gray-200',
-    orange: 'bg-orange-50 border-l-4 border-l-brand-orange border-y border-r border-gray-200',
+    orange: 'bg-red-50 border-l-4 border-l-brand-orange border-y border-r border-gray-200',
     red: 'bg-red-50 border-l-4 border-l-red-500 border-y border-r border-gray-200',
   }
 
